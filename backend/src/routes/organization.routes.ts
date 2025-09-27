@@ -8,5 +8,5 @@ const organizationRoutes:IRouter =  Router()
 organizationRoutes.post("/create",createOrganization)
 organizationRoutes.put("/update/:orgId",updateOrganization)
 organizationRoutes.delete("/delete/:orgId",deleteOrganization)
-organizationRoutes.get("/:orgId",getOrganizationDetails)
+organizationRoutes.get("/:orgOwner",getOrganizationDetails)
 export default organizationRoutes;

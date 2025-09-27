@@ -42,7 +42,7 @@ export const organizationApiDoc = {
       }
     },
 
-    "/organization/{orgId}": {
+    "/organization/{orgOwner}": {
       get: {
         tags: ["Organization"],
         summary: "Get organization details by ID",
