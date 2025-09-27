@@ -74,7 +74,7 @@ const Dashboard: React.FC = () => {
         setSchemaNames(response.schemaNames || []);
         
         console.log(response,"response")
-        const studentSchema = response.allSchemas.find(sch => sch.schema === "student");
+        const studentSchema = response.allSchemas.find((sch: any) => sch?.schema === "student");
         // Store the raw student data for the show-data tab (from first schema)
         setStudentData(studentSchema?.getschemawiseData);
 
@@ -147,7 +147,7 @@ const Dashboard: React.FC = () => {
           
           // Store the raw student data for the show-data tab (from first schema)
           // const studentSchema = response.schemaResponse.find(sch => sch.schema === "student");
-          const studentSchema = schemaResponse.allSchemas.find(sch => sch.schema === "student");
+          const studentSchema = schemaResponse.allSchemas.find((sch: any) => sch?.schema === "student");
         // Store the raw student data for the show-data tab (from first schema)
         setStudentData(studentSchema?.getschemawiseData);
           

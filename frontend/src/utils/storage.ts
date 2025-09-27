@@ -1,4 +1,4 @@
-import { ApiUser } from '../store/authSlice';
+import type { ApiUser } from '../store/authSlice';
 
 const STORAGE_KEYS = {
   USER: 'fillblocks_user',

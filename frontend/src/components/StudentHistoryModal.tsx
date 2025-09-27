@@ -50,9 +50,9 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
         setData(dataResponse?.data?.data || {})
         
         // Set student data from the specific schema response
-        if (dataResponse?.allSchemas && dataResponse.allSchemas[1]?.getschemawiseData) {
-          setStudentData(dataResponse.allSchemas[1].getschemawiseData);
-        }
+        // if (dataResponse?.allSchemas && dataResponse.allSchemas[1]?.getschemawiseData) {
+        //   setStudentData(dataResponse.allSchemas[1].getschemawiseData);
+        // }
         
         toast.success(`Loaded ${response.history?.length || 0} history records`);
       } else {
@@ -122,21 +122,21 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
                 </h2>
                 <p className="text-sm text-gray-600 flex items-center">
                  
-                  {uid?.Uid && (
+                  {(uid as any)?.Uid && (
                      
                       <div className="flex justify-between items-center bg-transparent">
                         <span className="text-xs font-medium text-blue-600"> UID:</span>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-1 ">
-                            {formatId(uid?.Uid, true)}
+                            {formatId((uid as any)?.Uid, true)}
                           </span>
                           <button
                             type="button"
                             className="p-2 rounded-lg hover:bg-blue-100 transition-colors duration-200 group"
                             title="Copy Transaction ID"
-                            onClick={() => handleCopyTxId(uid?.Uid)}
+                            onClick={() => handleCopyTxId((uid as any)?.Uid)}
                           >
-                            {copiedTxId === uid?.Uid? (
+                            {copiedTxId === (uid as any)?.Uid? (
                               <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
