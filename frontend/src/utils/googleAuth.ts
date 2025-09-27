@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 
 export interface GoogleUserData {
   email: string;
