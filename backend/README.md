@@ -1,124 +1,84 @@
-# Fillblocks Backend API
+# SDK Backend
 
-A Node.js Express backend with MongoDB for the Fillblocks application.
-
-## Features
-
-- Express.js server with middleware
-- MongoDB database with Mongoose ODM
-- JWT authentication
-- User and Organization models
-- Rate limiting and security middleware
-- Error handling
-- Environment configuration
+A Node.js backend service for managing data uploads and retrieval using Arweave blockchain.
 
 ## Prerequisites
 
-- Node.js (v18 or higher)
-- MongoDB (local or cloud instance)
-- npm or yarn
+- Node.js (v16 or higher)
+- npm or pnpm
 
-## Installation
+## Setup
 
 1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Create environment file:
+2. Start ArLocal (Arweave local node):
 ```bash
-cp env.example .env
+npm run arlocal
 ```
 
-3. Update `.env` with your configuration:
-```env
-PORT=5000
-NODE_ENV=development
-MONGODB_URI=mongodb://localhost:27017/fillblocks
-JWT_SECRET=your-super-secret-jwt-key-here
-JWT_EXPIRE=7d
-FRONTEND_URL=http://localhost:3000
-```
-
-## Running the Application
-
-### Development
+3. In a separate terminal, start the backend:
 ```bash
 npm run dev
 ```
 
-### Production
+## Quick Start (Windows)
+
+Use the provided batch file to start both services:
 ```bash
-npm start
+start-dev.bat
+```
+
+Or use PowerShell:
+```powershell
+.\start-dev.ps1
 ```
 
 ## API Endpoints
 
-### Authentication
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user (protected)
+### Upload Data
+- **POST** `/api/sdk/upload/:schema/data`
+- Headers: `clientid`, `secretid`
+- Body: `{ "payload": { ... } }`
 
-### Health Check
-- `GET /api/health` - Server health status
+### Get Unique Schemas
+- **GET** `/api/arwaves/schemas/unique`
+- Headers: `Authorization: Bearer <token>`
 
-## Project Structure
+### Get Data by Schema
+- **GET** `/api/arwaves/schema/:schema`
+- Headers: `Authorization: Bearer <token>`
 
-```
-backend/
-├── src/
-│   ├── config/
-│   │   └── database.js
-│   ├── controllers/
-│   │   └── authController.js
-│   ├── middleware/
-│   │   ├── auth.js
-│   │   └── errorHandler.js
-│   ├── models/
-│   │   ├── User.js
-│   │   └── Organization.js
-│   ├── routes/
-│   │   ├── auth.js
-│   │   └── index.js
-│   └── server.js
-├── package.json
-├── env.example
-└── README.md
-```
+### Get User History
+- **GET** `/api/arwaves/schema/:schema/user/:userId/history`
+- Headers: `Authorization: Bearer <token>`
 
-## Environment Variables
+## Troubleshooting
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | 8080 |
-| `NODE_ENV` | Environment | development |
-| `MONGODB_URI` | MongoDB connection string | mongodb://localhost:27017/fillblocks |
-| `JWT_SECRET` | JWT secret key | - |
-| `JWT_EXPIRE` | JWT expiration | 7d |
-| `FRONTEND_URL` | Frontend URL for CORS | http://localhost:3000 |
+### "fetch failed" Error
+This error occurs when ArLocal is not running. Make sure to:
+1. Start ArLocal first: `npm run arlocal`
+2. Wait for it to fully start (you should see "ArLocal is ready!")
+3. Then start the backend: `npm run dev`
 
-## Security Features
+### Port 1984 Already in Use
+If port 1984 is already in use:
+1. Kill the process using the port
+2. Or change the port in `src/arwaves/arwaves.ts` and restart ArLocal with the new port
 
-- Helmet.js for security headers
-- CORS configuration
-- Rate limiting
-- Password hashing with bcrypt
-- JWT authentication
-- Input validation with express-validator
+### Empty Data Responses
+If GET routes return empty data:
+1. Ensure data has been uploaded first
+2. Check that the organization ID matches between upload and retrieval
+3. Verify the schema name is correct
+4. Check the server logs for detailed error messages
 
 ## Development
 
-The server runs on `http://localhost:8080` by default. The API is available at `http://localhost:8080/api`.
+The project uses TypeScript and compiles to the `dist/` directory. The development server automatically rebuilds and restarts on file changes.
 
-## Testing
+## Logs
 
-```bash
-npm test
-```
-
-## Linting
-
-```bash
-npm run lint
-npm run lint:fix
-```
+Server logs are written to the `logs` file in the project root. Check this file for detailed error information.

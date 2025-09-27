@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { arweaveSetup } from "../../arwaves/arwaves";
 
 
+ 
 function toBase64(str: string) {
   return Buffer.from(str).toString("base64");
 }
@@ -12,76 +13,66 @@ function fromBase64(str: string) {
 
 export const getUniqueSchemas = async (req: Request, res: Response): Promise<any> => {
   try {
-    const orgClientId = (req as any)?.user?.organization?._id.toString();
+    const orgClientId = (req as any)?.user?.organization?._id?.toString();
+
+    console.log(orgClientId,"orgClientId");
     if (!orgClientId) {
       return res.status(400).json({ message: "Organization ID not found" });
     }
-    console.log(orgClientId)
 
     const { arweave }: any = await arweaveSetup();
+    const pageSize = parseInt(req.query.pageSize as string) || 100; // optional override
 
-    const pageSize = parseInt(req.query.pageSize as string) || 50;
-    let after: string | null = (req.query.after as string) || null;
-    const schemaSet: Set<string> = new Set();
-    let hasNextPage = true;
-
-    while (hasNextPage) {
-      const query = {
-        query: `
-          query {
-            transactions(
-              tags: [
-                { name: "App-Name", values: ["Philblocks-sdk"] },
-                { name: "OrganizationId", values: ["${orgClientId}"] }
-              ]
-              first: ${pageSize}
-              ${after ? `after: "${after}"` : ""}
-            ) {
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-              edges {
-                node {
-                  id
-                  tags {
-                    name
-                    value
-                  }
+    const query = {
+      query: `
+        query {
+          transactions(
+            tags: [
+              { name: "App-Name", values: ["Philblocks-sdk"] },
+              { name: "OrganizationId", values: ["${orgClientId}"] }
+            ],
+            first: ${pageSize}
+          ) {
+            edges {
+              node {
+                id
+                tags {
+                  name
+                  value
                 }
               }
             }
           }
-        `,
-      };
+        }
+      `,
+    };
 
-      const result = await arweave.api.post("/graphql", query);
-      console.log(result,"result")
-      const transactions = result?.data?.data?.transactions;
-      console.log(transactions,"transactions")
+    console.log(query,"query")
 
+    const result = await arweave.api.post("/graphql", query);
+    console.log(result,"result")
+    const transactions = result?.data?.data?.transactions;
+    console.log(transactions,"transactions")
+    if (!transactions || !transactions.edges) {
+      return res.status(200).json({
+        success: true,
+        uniqueSchemas: [],
+        count: 0,
+      });
+    }
 
-      if (!transactions || !transactions.edges) break;
+    const schemaSet: Set<string> = new Set();
 
-      const edges = transactions.edges;
-      const pageInfo = transactions.pageInfo || { hasNextPage: false };
-
-      for (let edge of edges) {
-        const tx = edge.node;
-        if (tx.tags) {
-          for (let tag of tx.tags) {
-            // Check both base64 encoded and plain text versions
-            if ((tag.name === toBase64("Schema") || tag.name === "Schema") && tag.value) {
-              const schemaValue = tag.name === toBase64("Schema") ? fromBase64(tag.value) : tag.value;
-              schemaSet.add(schemaValue);
-            }
+    for (let edge of transactions.edges) {
+      const tx = edge.node;
+      if (tx.tags) {
+        for (let tag of tx.tags) {
+          if ((tag.name === toBase64("Schema") || tag.name === "Schema") && tag.value) {
+            const schemaValue = tag.name === toBase64("Schema") ? fromBase64(tag.value) : tag.value;
+            schemaSet.add(schemaValue);
           }
         }
       }
-
-      hasNextPage = pageInfo.hasNextPage;
-      // Note: Arweave GraphQL doesn't support endCursor, so we'll use a different pagination approach
-      after = null; // For now, we'll fetch all data without pagination
     }
 
     return res.status(200).json({
@@ -97,6 +88,7 @@ export const getUniqueSchemas = async (req: Request, res: Response): Promise<any
     });
   }
 };
+
 
 export const getDataBySchema = async (req: Request, res: Response): Promise<any> => {
   try {
@@ -143,7 +135,7 @@ export const getDataBySchema = async (req: Request, res: Response): Promise<any>
     };
 
     const result = await arweave.api.post("/graphql", query);
-    console.log("GraphQL result for getDataBySchema:", JSON.stringify(result?.data, null, 2));
+    // console.log("GraphQL result for getDataBySchema:", JSON.stringify(result?.data, null, 2));÷
     const transactions = result?.data?.data?.transactions;
 
     if (!transactions) {
@@ -193,35 +185,27 @@ export const getDataBySchema = async (req: Request, res: Response): Promise<any>
  
 export const getSingleUserHistory = async (req: Request, res: Response): Promise<any> => {
   try {
-    const schema = req.params.schema;
     const userId = req.params.userId;
     if (!userId) return res.status(400).json({ message: "User ID is required" });
 
-    const pageSize = parseInt(req.query.pageSize as string) || 20;
-    const after = (req.query.after as string) || null;
-    const orgClientId = (req as any)?.user?.organization?._id;
-
-    if (!orgClientId) {
-      return res.status(400).json({ message: "Organization ID not found" });
-    }
+    const orgClientId = (req as any)?.user?.organization?._id?.toString();
+    if (!orgClientId) return res.status(400).json({ message: "Organization ID not found" });
 
     const { arweave }: any = await arweaveSetup();
 
+    const pageSize = parseInt(req.query.pageSize as string) || 50;
+
+    // Query all transactions for this organization
     const query = {
       query: `
         query {
           transactions(
             tags: [
               { name: "App-Name", values: ["Philblocks-sdk"] },
-              { name: "Schema", values: ["${schema}"] },
               { name: "OrganizationId", values: ["${orgClientId}"] }
-            ]
+            ],
             first: ${pageSize}
-            ${after ? `after: "${after}"` : ""}
           ) {
-            pageInfo {
-              hasNextPage
-            }
             edges {
               node {
                 id
@@ -237,11 +221,9 @@ export const getSingleUserHistory = async (req: Request, res: Response): Promise
     };
 
     const result = await arweave.api.post("/graphql", query);
-    console.log("GraphQL result for getSingleUserHistory:", JSON.stringify(result?.data, null, 2));
     const transactions = result?.data?.data?.transactions;
 
     if (!transactions || !transactions.edges) {
-      console.warn("⚠️ No transactions found for schema or user:", schema, userId, "Result:", result?.data);
       return res.status(404).json({
         success: false,
         message: "No transactions found for this user",
@@ -249,26 +231,23 @@ export const getSingleUserHistory = async (req: Request, res: Response): Promise
       });
     }
 
-    const edges = transactions.edges;
-    const pageInfo = transactions.pageInfo || { hasNextPage: false };
-
     const userTxs = await Promise.all(
-      edges.map(async (edge: any) => {
+      transactions.edges.map(async (edge: any) => {
         const tx = edge.node;
         try {
           const raw = await arweave.transactions.getData(tx.id, { decode: true, string: true });
           const data = JSON.parse(raw);
-          // Check multiple possible user ID fields
           if (data._id === userId || data.id === userId || data.userId === userId || data.user_id === userId) {
+            const schemaTag = tx.tags.find((t: any) => t.name === "Schema")?.value || "unknown";
             return {
               txId: tx.id,
+              schema: schemaTag,
               data,
               timestamp: tx.tags.find((t: any) => t.name === "Timestamp")?.value || null,
             };
           }
           return null;
-        } catch (e) {
-          console.warn(`⚠️ Failed to fetch or parse data for transaction ${tx.id}`);
+        } catch {
           return null;
         }
       })
@@ -278,16 +257,14 @@ export const getSingleUserHistory = async (req: Request, res: Response): Promise
 
     return res.status(200).json({
       success: true,
-      schema,
       userId,
-      nextCursor: null, // Arweave GraphQL doesn't support endCursor
       history: filteredTxs.sort((a, b) => {
         if (a.timestamp && b.timestamp) return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
         return 0;
       }),
     });
   } catch (err: any) {
-    console.error("❌ Error in getSingleUserHistory:", err.message || err);
+    console.error("❌ Error in getUserHistoryAllSchemas:", err.message || err);
     return res.status(500).json({ message: "Internal server error", error: err.message });
   }
 };
@@ -326,5 +303,95 @@ export const getTransactionByHash = async (req: Request, res: Response) => {
       message: "Failed to fetch transaction",
       error: err.message,
     });
+  }
+};
+
+export const getLastStudentRecord = async (req: Request, res: Response) => {
+  try {
+    const studentId = req.params.studentId;
+    const schema = req.params.schema;
+
+    if (!studentId) return res.status(400).json({ message: "Student ID is required" });
+    if (!schema) return res.status(400).json({ message: "Schema is required" });
+
+    const orgClientId = (req as any)?.user?.organization?._id?.toString();
+    if (!orgClientId) return res.status(400).json({ message: "Organization ID not found" });
+
+    const { arweave }: any = await arweaveSetup();
+
+    const query = {
+      query: `
+        query {
+          transactions(
+            tags: [
+              { name: "App-Name", values: ["Philblocks-sdk"] },
+              { name: "OrganizationId", values: ["${orgClientId}"] },
+              { name: "Schema", values: ["${schema}"] }
+            ],
+            first: 100
+          ) {
+            edges {
+              node {
+                id
+                tags {
+                  name
+                  value
+                }
+              }
+            }
+          }
+        }
+      `,
+    };
+
+    const result = await arweave.api.post("/graphql", query);
+    const transactions = result?.data?.data?.transactions?.edges || [];
+
+    const studentTxs = await Promise.all(
+      transactions.map(async (edge: any) => {
+        const tx = edge.node;
+        try {
+          const raw = await arweave.transactions.getData(tx.id, { decode: true, string: true });
+          const data = JSON.parse(raw);
+
+          const matchesStudent =
+            data._id === studentId ||
+            data.id === studentId ||
+            data.userId === studentId ||
+            data.user_id === studentId;
+
+          if (matchesStudent) {
+            const timestamp = tx.tags.find((t: any) => t.name === "Timestamp")?.value || null;
+            return {
+              txId: tx.id,
+              schema,
+              data,
+              timestamp,
+            };
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    const filteredTxs = studentTxs.filter(Boolean);
+
+    if (filteredTxs.length === 0) {
+      return res.status(404).json({ message: "No student transactions found" });
+    }
+
+    // Sort by timestamp descending (newest first)
+
+
+    return res.status(200).json({
+      success: true,
+      data:filteredTxs[filteredTxs.length - 1],
+    });
+
+  } catch (err: any) {
+    console.error("❌ Error in getLastStudentRecord:", err.message || err);
+    return res.status(500).json({ message: "Internal server error", error: err.message });
   }
 };

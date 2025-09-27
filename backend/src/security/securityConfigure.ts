@@ -48,13 +48,13 @@ export const securityConfigure = (app: Application) => {
   app.use(hpp());
 
  
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000, 
-      limit: process.env.NODE_ENV === "production" ? 80 : 200, 
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: "⛔ Too many requests from this IP, please try again later.",
-    })
-  );
+  // app.use(
+  //   rateLimit({
+  //     windowMs: 15 * 60 * 1000, 
+  //     limit: process.env.NODE_ENV === "production" ? 600: 400, 
+  //     standardHeaders: true,
+  //     legacyHeaders: false,
+  //     message: "⛔ Too many requests from this IP, please try again later.",
+  //   })
+  // );
 };

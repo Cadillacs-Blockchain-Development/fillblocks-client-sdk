@@ -2,6 +2,7 @@ import { prepareContractCall, sendTransaction } from "thirdweb";
 import { ethers } from "ethers";
 import { setupServerWallet } from "./server.wallet";
 import {  philblocksUuidContract, philblocksCoreContract} from "./contract";
+import { UuidModel } from "../models/studentUid";
  
 
 export const generateUuid = async (
@@ -102,5 +103,55 @@ export const initializeStudentDataStream = async (
   } catch (error: any) {
     console.error("❌ Error in initializeStudentDataStream:", error?.message || error);
     throw new Error("Failed to initialize student data stream");
+  }
+};
+
+
+
+export const updateUserDataOnBlockchain = async (
+  userId: string,
+  dataType: string,
+  currentArwavesTxId: string
+) => {
+  try {
+    const studentInfo: any = await UuidModel.findOne({ userId: userId });
+    const wallet = await setupServerWallet();
+    if (!wallet) {
+      throw new Error("Failed to initialize server wallet");
+    }
+
+   
+    function toBytes32(data:any) {
+      // Convert string to bytes and hash it (keccak256 returns 32 bytes)
+      return ethers.keccak256(ethers.toUtf8Bytes(data));
+    }
+
+    const previousDataHash = toBytes32(studentInfo.previousDataHash);
+    const currentDataHash = toBytes32(currentArwavesTxId);
+
+    const transaction = await prepareContractCall({
+      contract: philblocksCoreContract,
+      method:
+        "function updateStudentData(bytes32 studentUID, string dataType, string arweaveTxId, bytes32 previousDataHash, bytes32 currentDataHash)",
+      params: [
+        (studentInfo.Uid as any),
+        dataType,
+        currentArwavesTxId,
+        (previousDataHash as any),
+       ( currentDataHash as any),
+      ],
+    });
+
+    const updatePreviousDataHash = await UuidModel.findByIdAndUpdate(studentInfo._id, { previousDataHash: currentArwavesTxId });
+
+    const transactionHash = await sendTransaction({
+      transaction,
+      account: wallet as any,
+    });
+
+    return (transactionHash as any)?.hash;
+  } catch (error) {
+    console.error("Error in updateUserData:", error);
+    throw error;
   }
 };

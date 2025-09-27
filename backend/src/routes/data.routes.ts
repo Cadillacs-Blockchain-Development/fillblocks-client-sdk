@@ -1,9 +1,10 @@
 import express, { IRouter, Router } from 'express'
 import { sdkAuthenticateMiddleware } from '../middlewares/sdk.authenticate.middleware';
-import { uploadData } from '../controllers/data/sdk.upload.controller';
+import { updateUserData, uploadData } from '../controllers/data/sdk.upload.controller';
  
 const sdkUploadRoutes:IRouter =  Router()
 sdkUploadRoutes.post("/upload/:schema/data",sdkAuthenticateMiddleware,uploadData)
+sdkUploadRoutes.put("/update/:schema/data",sdkAuthenticateMiddleware,updateUserData)
 
 export default sdkUploadRoutes;
 
