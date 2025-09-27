@@ -24,6 +24,8 @@ const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [schemaName, setSchemaName] = useState<string>('');
+  const [allSchemas, setAllSchemas] = useState<any[]>([]);
+  const [schemaNames, setSchemaNames] = useState<string[]>([]);
   const [studentData, setStudentData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userOrganization, setUserOrganization] = useState<OrganizationDataResponse['organization'] | null>(null);
@@ -61,31 +63,37 @@ const Dashboard: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await getSchemas(token || undefined);
+
       console.log(response,"response schemas")
       if (response && response.schema && response.getschemawiseData) {
-        // Store the schema name
+        // Store the schema name (first schema for backward compatibility)
         setSchemaName(response.schema);
         
-        // Store the raw student data for the show-data tab
-        setStudentData(response.getschemawiseData);
+        // Store all schemas data
+        setAllSchemas(response.allSchemas || []);
+        setSchemaNames(response.schemaNames || []);
         
-        // Create a single schema entry that represents all the data for this schema type
-        const schemaEntry: Schema = {
-          id: response.schema,
-          name: response.schema,
-          type: 'student_schema',
+        // Store the raw student data for the show-data tab (from first schema)
+        setStudentData(schemaResponse?.allSchemas[1]?.getschemawiseData);
+        
+        console.log(response.allSchemas,"response.allSchemas")
+        // Create schema entries for all schemas
+        const schemaEntries: Schema[] = (response.allSchemas || []).map((schemaData: any) => ({
+          id: schemaData.schema,
+          name: schemaData.schema,
+          type: `${schemaData.schema}_schema`,
           definition: JSON.stringify({
-            schemaName: response.schema,
-            totalRecords: response.getschemawiseData.length,
-            sampleData: response.getschemawiseData[0]?.data || {},
-            allRecords: response.getschemawiseData
+            schemaName: schemaData.schema,
+            totalRecords: schemaData.getschemawiseData.length,
+            sampleData: schemaData.getschemawiseData[0]?.data || {},
+            allRecords: schemaData.getschemawiseData
           }, null, 2),
-          createdAt: response.getschemawiseData[0]?.data?.createdAt || new Date().toISOString(),
+          createdAt: schemaData.getschemawiseData[0]?.data?.createdAt || new Date().toISOString(),
           isValid: true
-        };
+        }));
         
-        setSchemas([schemaEntry]);
-        toast.success(`Loaded ${response.getschemawiseData.length} records for ${response.schema} schema`);
+        setSchemas(schemaEntries);
+        toast.success(`Loaded ${response.totalSchemas} schema types with ${response.getschemawiseData.length} records`);
       } else {
         toast.error('No schema data found');
       }
@@ -125,31 +133,35 @@ const Dashboard: React.FC = () => {
       // Also fetch schemas in the same function to avoid duplicate API calls
       try {
         const schemaResponse = await getSchemas(token || undefined);
-        
+          console.log(schemaResponse,"schemaResponse")
         if (schemaResponse && schemaResponse.schema && schemaResponse.getschemawiseData) {
-          // Store the schema name
+          // Store the schema name (first schema for backward compatibility)
           setSchemaName(schemaResponse.schema);
           
-          // Store the raw student data for the show-data tab
-          setStudentData(schemaResponse.getschemawiseData);
+          // Store all schemas data
+          setAllSchemas(schemaResponse.allSchemas || []);
+          setSchemaNames(schemaResponse.schemaNames || []);
           
-          // Create a single schema entry that represents all the data for this schema type
-          const schemaEntry: Schema = {
-            id: schemaResponse.schema,
-            name: schemaResponse.schema,
-            type: 'student_schema',
+          // Store the raw student data for the show-data tab (from first schema)
+          setStudentData(schemaResponse?.allSchemas[1]?.getschemawiseData);
+          
+          // Create schema entries for all schemas
+          const schemaEntries: Schema[] = (schemaResponse.allSchemas || []).map((schemaData: any) => ({
+            id: schemaData.schema,
+            name: schemaData.schema,
+            type: `${schemaData.schema}_schema`,
             definition: JSON.stringify({
-              schemaName: schemaResponse.schema,
-              totalRecords: schemaResponse.getschemawiseData.length,
-              sampleData: schemaResponse.getschemawiseData[0]?.data || {},
-              allRecords: schemaResponse.getschemawiseData
+              schemaName: schemaData.schema,
+              totalRecords: schemaData.getschemawiseData.length,
+              sampleData: schemaData.getschemawiseData[0]?.data || {},
+              allRecords: schemaData.getschemawiseData
             }, null, 2),
-            createdAt: schemaResponse.getschemawiseData[0]?.data?.createdAt || new Date().toISOString(),
+            createdAt: schemaData.getschemawiseData[0]?.data?.createdAt || new Date().toISOString(),
             isValid: true
-          };
+          }));
           
-          setSchemas([schemaEntry]);
-          toast.success(`Loaded ${schemaResponse.getschemawiseData.length} records for ${schemaResponse.schema} schema`);
+          setSchemas(schemaEntries);
+          toast.success(`Loaded ${schemaResponse.totalSchemas} schema types with ${schemaResponse.getschemawiseData.length} records`);
         } else {
           toast.error('No schema data found');
         }
@@ -260,6 +272,8 @@ const Dashboard: React.FC = () => {
     { id: 'show-data', label: 'Show Data', icon: '🗂️' },
   ];
 
+
+  console.log(studentData,"studentData")
   const renderContent = () => {
     switch (activeTab) {
       case 'add-project':
@@ -387,7 +401,10 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm font-medium text-gray-600">Schema Types</p>
-                    <p className="text-xl font-bold text-gray-900">{schemas.length}</p>
+                    <p className="text-xl font-bold text-gray-900">{schemaNames.length}</p>
+                    <p className="text-xs text-gray-500">
+                      {schemaNames.length > 0 ? schemaNames.join(', ') : 'None'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -398,7 +415,12 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm font-medium text-gray-600">Total Records</p>
-                    <p className="text-xl font-bold text-gray-900">{studentData.length}</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {allSchemas.reduce((total, schema) => total + (schema.getschemawiseData?.length || 0), 0)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Across all schemas
+                    </p>
                   </div>
                 </div>
               </div>
@@ -409,7 +431,12 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm font-medium text-gray-600">Blockchain Entries</p>
-                    <p className="text-xl font-bold text-gray-900">{studentData.length}</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {allSchemas.reduce((total, schema) => total + (schema.getschemawiseData?.length || 0), 0)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Total transactions
+                    </p>
                   </div>
                 </div>
               </div>
@@ -421,10 +448,13 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {schemaName ? `${schemaName} Schema Definition` : 'All Schemas'}
+                      {schemaNames.length > 0 ? `All Schema Definitions (${schemaNames.length} types)` : 'All Schemas'}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      {schemaName ? `Schema definition and metadata for ${schemaName} (${studentData.length} records)` : 'View and manage your schema definitions'}
+                      {schemaNames.length > 0 
+                        ? `Schema definitions for: ${schemaNames.join(', ')} (${allSchemas.reduce((total, schema) => total + (schema.getschemawiseData?.length || 0), 0)} total records)`
+                        : 'View and manage your schema definitions'
+                      }
                     </p>
                   </div>
                   <button

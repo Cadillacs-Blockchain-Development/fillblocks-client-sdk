@@ -167,24 +167,45 @@ export const getSchemas = async (token?: string): Promise<any> => {
     }
   );
 
-  const uniqueSchemas = response.data.uniqueSchemas[0];
+  const uniqueSchemas = response.data.uniqueSchemas;
+  const allSchemasData = [];
 
-  if (uniqueSchemas) {
-    const schemaResponse = await axios.get(
-      `${import.meta.env.VITE_BASE_URL}/arwaves/schema/${uniqueSchemas}`,
-      {
-        headers,
-        withCredentials: true,
+  if (uniqueSchemas && uniqueSchemas.length > 0) {
+    // Fetch data for each schema type
+    for (const schemaName of uniqueSchemas) {
+      try {
+        const schemaResponse = await axios.get(
+          `${import.meta.env.VITE_BASE_URL}/arwaves/schema/${schemaName}`,
+          {
+            headers,
+            withCredentials: true,
+          }
+        );
+
+        allSchemasData.push({
+          schema: schemaName,
+          getschemawiseData: schemaResponse.data?.data || [],
+        });
+        console.log(allSchemasData,"allSchemasData")
+      } catch (error) {
+        console.error(`Error fetching data for schema ${schemaName}:`, error);
+        // Continue with other schemas even if one fails
+        allSchemasData.push({
+          schema: schemaName,
+          getschemawiseData: [],
+        });
       }
-    );
+    }
 
-    const data = {
-      schema: uniqueSchemas,
-      getschemawiseData: schemaResponse.data?.data,
+    // Return the first schema data for backward compatibility
+    // but also include all schemas data
+    const firstSchema = allSchemasData[0];
+    return {
+      ...firstSchema,
+      allSchemas: allSchemasData,
+      totalSchemas: uniqueSchemas.length,
+      schemaNames: uniqueSchemas
     };
-
-    console.log(data,"data")
-    return data;
   }
 
   // Return empty object if no schema found
@@ -240,6 +261,7 @@ export interface StudentHistoryResponse {
   userId: string;
   history: Array<{
     txId: string;
+    schema: string;
     data: any;
     timestamp: string | null;
   }>;
@@ -266,6 +288,40 @@ export const getStudentHistory = async (
       withCredentials: true,
     }
   );
+  
 
   return response.data;
 };
+
+export const getStudentUid = async (studentId: string, token?: string): Promise<any> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['x-auth-token'] = token;
+  }
+  const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/auth/get/student/uid/${studentId}`, {
+    headers,
+    withCredentials: true,
+  });
+
+  return response.data;
+};  
+
+export const getDataFromShemaAndSchemaAndStudentId = async (schema: string, studentId: string, token?: string): Promise<any> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['x-auth-token'] = token;
+  }
+  const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/auth/get/student/data/${schema}/${studentId}`, {
+    headers,
+    withCredentials: true,
+  });
+
+  return response.data;
+};
+

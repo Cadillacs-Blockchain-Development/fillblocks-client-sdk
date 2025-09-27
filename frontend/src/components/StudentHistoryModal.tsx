@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getStudentHistory } from '../utils/organizationApi';
+import { getDataFromShemaAndSchemaAndStudentId, getStudentHistory, getStudentUid } from '../utils/organizationApi';
 import toast from 'react-hot-toast';
 
 interface StudentHistoryModalProps {
@@ -27,6 +27,9 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
 }) => {
   const [history, setHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [uid, setUid] = useState<string | null>(null);
+  const [copiedTxId, setCopiedTxId] = useState<string | null>(null);
+  const [data, setData] = useState<any>(null);
 
   useEffect(() => {
     if (isOpen && student?.data?._id) {
@@ -38,9 +41,13 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
     try {
       setIsLoading(true);
       const response = await getStudentHistory(schemaName, student.data._id, token);
+      const uidResponse = await getStudentUid(student.data._id, token);
+      const dataResponse = await getDataFromShemaAndSchemaAndStudentId("student", student.data._id, token);
       
-      if (response.success) {
+      if (response.success && uidResponse && dataResponse.success) {
         setHistory(response.history || []);
+        setUid(uidResponse?.user)
+        setData(dataResponse?.data?.data || {})
         toast.success(`Loaded ${response.history?.length || 0} history records`);
       } else {
         toast.error('Failed to fetch student history');
@@ -56,10 +63,41 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  const handleCopyTxId = async (txId: string) => {
+    try {
+      await navigator.clipboard.writeText(txId);
+      setCopiedTxId(txId);
+      toast.success('Transaction ID copied to clipboard!');
+      
+      // Reset icon after 3 seconds
+      setTimeout(() => {
+        setCopiedTxId(null);
+      }, 3000);
+    } catch (err) {
+      console.error('Copy failed:', err);
+      toast.error('Failed to copy transaction ID');
+    }
+  };
 
+  const formatId = (id: string, isTxId: boolean = false) => {
+    if (isTxId) {
+      // For transaction IDs, show first 8 and last 8 characters with dots
+      if (id.length > 16) {
+        return `${id.substring(0, 8)}...${id.substring(id.length - 8)}`;
+      }
+      return id;
+    }
+    // For regular IDs, don't truncate
+    return id;
+  };
+
+
+
+  if (!isOpen) return null;
+  console.log(student,"student");
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-[#00000099] bg-opacity-10 flex items-center justify-center z-50 p-4">
+
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
@@ -68,19 +106,48 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
               <div className="flex-shrink-0 h-12 w-12">
                 <img 
                   className="h-12 w-12 rounded-full" 
-                  src={student?.data?.profile_picture || '/default-avatar.png'} 
+                  src={data?.profile_picture || '/default-avatar.png'} 
                   alt="Profile" 
                 />
               </div>
               <div className="ml-4">
-                <h2 className="text-xl font-bold text-gray-900">
-                  {student?.data?.name || 'Unknown Student'}
+                <h2 className="text-lg font-bold text-gray-900">
+                  {data?.name || 'Student Name'}
                 </h2>
-                <p className="text-sm text-gray-600">
-                  {student?.data?.email} • ID: {student?.data?._id}
+                <p className="text-sm text-gray-600 flex items-center">
+                 
+                  {uid?.Uid && (
+                     
+                      <div className="flex justify-between items-center bg-transparent">
+                        <span className="text-xs font-medium text-blue-600"> UID:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-1 ">
+                            {formatId(uid?.Uid, true)}
+                          </span>
+                          <button
+                            type="button"
+                            className="p-2 rounded-lg hover:bg-blue-100 transition-colors duration-200 group"
+                            title="Copy Transaction ID"
+                            onClick={() => handleCopyTxId(uid?.Uid)}
+                          >
+                            {copiedTxId === uid?.Uid? (
+                              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4 text-gray-500 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" fill="none"/>
+                                <rect x="3" y="3" width="13" height="13" rx="2" stroke="currentColor" fill="none"/>
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                  
+                )}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  History for {schemaName} schema
+                  History for {data?.name} student
                 </p>
               </div>
             </div>
@@ -116,83 +183,190 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
                 </button>
               </div>
               
-              {history.map((record, index) => (
-                <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center">
-                      <span className="text-lg mr-2">📋</span>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Record #{index + 1}
-                        </h4>
-                        <p className="text-xs text-gray-500">
-                          {record.data?.createdAt ? new Date(record.data.createdAt).toLocaleString() : 'No date'}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                      Active
-                    </span>
-                  </div>
+              {history.map((record, index) => {
+                const getSchemaIcon = (schema: string) => {
+                  switch (schema) {
+                    case 'student': return '👨‍🎓';
+                    case 'attendence': return '📅';
+                    default: return '📋';
+                  }
+                };
+
+                const getSchemaColor = (schema: string) => {
+                  switch (schema) {
+                    case 'student': return 'bg-blue-100 text-blue-800';
+                    case 'attendence': return 'bg-green-100 text-green-800';
+                    default: return 'bg-gray-100 text-gray-800';
+                  }
+                };
+
+                const formatFieldValue = (key: string, value: any) => {
+                  if (value === null || value === undefined || value === '') return 'N/A';
                   
-                  <div className="space-y-2">
-                    {record.data && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">Name:</label>
-                          <p className="text-sm text-gray-900">{record.data.name || 'N/A'}</p>
+                  // Handle date fields
+                  if (key.includes('date') || key.includes('Date') || key.includes('dob') || key.includes('createdAt') || key.includes('updatedAt')) {
+                    try {
+                      return new Date(value).toLocaleDateString();
+                    } catch {
+                      return value;
+                    }
+                  }
+                  
+                  // Handle arrays
+                  if (Array.isArray(value)) {
+                    return value.length > 0 ? `${value.length} items` : 'Empty';
+                  }
+                  
+                  // Handle objects
+                  if (typeof value === 'object') {
+                    return JSON.stringify(value);
+                  }
+                  
+                  return value;
+                };
+
+                const getFieldLabel = (key: string) => {
+                  const labelMap: { [key: string]: string } = {
+                    '_id': 'ID',
+                    'name': 'Name',
+                    'email': 'Email',
+                    'phone_number': 'Phone',
+                    'roll_number': 'Roll Number',
+                    'dob': 'Date of Birth',
+                    'current_school': 'Current School',
+                    'assign_class': 'Assigned Class',
+                    'medical_notes': 'Medical Notes',
+                    'profile_picture': 'Profile Picture',
+                    'proof_of_identity': 'Proof of Identity',
+                    'teacherId': 'Teacher ID',
+                    'classId': 'Class ID',
+                    'schoolId': 'School ID',
+                    'date': 'Date',
+                    'status': 'Status',
+                    'notes': 'Notes',
+                    'attendence': 'Attendance Date',
+                    'createdAt': 'Created At',
+                    'updatedAt': 'Updated At'
+                  };
+                  return labelMap[key] || key.charAt(0).toUpperCase() + key.slice(1);
+                };
+
+                const isImportantField = (key: string) => {
+                  const importantFields = ['name', 'email', 'status', 'date', 'roll_number', 'phone_number'];
+                  return importantFields.includes(key);
+                };
+
+                const importantFields = record.data ? Object.keys(record.data).filter(isImportantField) : [];
+                const otherFields = record.data ? Object.keys(record.data).filter(key => !isImportantField(key)) : [];
+
+                return (
+                  <div key={index} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                    <div className="flex items-start justify-between mb-5">
+                      <div className="flex items-center">
+                        <div className="p-2 bg-white rounded-lg shadow-sm mr-3">
+                          <span className="text-xl">{getSchemaIcon(record.schema)}</span>
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-gray-500">Email:</label>
-                          <p className="text-sm text-gray-900">{record.data.email || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">Phone:</label>
-                          <p className="text-sm text-gray-900">{record.data.phone_number || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">Roll Number:</label>
-                          <p className="text-sm text-gray-900">{record.data.roll_number || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">DOB:</label>
-                          <p className="text-sm text-gray-900">
-                            {record.data.dob ? new Date(record.data.dob).toLocaleDateString() : 'N/A'}
+                          <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                            {record.schema.charAt(0).toUpperCase() + record.schema.slice(1)} Record #{index + 1}
+                            <span className={`px-2 py-1 text-xs rounded-full ${getSchemaColor(record.schema)}`}>
+                              {record.schema.toUpperCase()}
+                            </span>
+                          </h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {record.data?.createdAt ? new Date(record.data.createdAt).toLocaleString() : 
+                             record.data?.date ? new Date(record.data.date).toLocaleString() : 'No date'}
                           </p>
                         </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">Current School:</label>
-                          <p className="text-sm text-gray-900">{record.data.current_school || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">Assigned Class:</label>
-                          <p className="text-sm text-gray-900">{record.data.assign_class || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-500">Medical Notes:</label>
-                          <p className="text-sm text-gray-900">{record.data.medical_notes || 'None'}</p>
-                        </div>
                       </div>
-                    )}
+                    </div>
                     
-                    {record.txId && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <label className="text-xs font-medium text-gray-500">Transaction ID:</label>
-                        <p className="text-xs text-gray-600 font-mono break-all">{record.txId}</p>
+                    <div className="space-y-4">
+                      {/* Important Fields */}
+                      {importantFields.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {importantFields.map((key) => (
+                            <div key={key} className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+                              <label className="text-xs font-semibold text-gray-600 block mb-2 uppercase tracking-wide">
+                                {getFieldLabel(key)}
+                              </label>
+                              <p className="text-sm text-gray-900 font-medium">
+                                {key === '_id' ? formatId(record.data[key], false) : formatFieldValue(key, record.data[key])}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Other Fields */}
+                      {otherFields.length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                          <h5 className="text-xs font-semibold text-gray-600 mb-3 uppercase tracking-wide">Additional Details</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {otherFields.map((key) => (
+                              <div key={key} className="flex justify-between items-center py-1">
+                                <span className="text-xs text-gray-500 font-medium">
+                                  {getFieldLabel(key)}:
+                                </span>
+                                <span className="text-xs text-gray-700 text-right max-w-32 truncate font-mono">
+                                  {key === '_id' ? formatId(record.data[key], false) : formatFieldValue(key, record.data[key])}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Transaction Details */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100 shadow-sm">
+                        <h5 className="text-xs font-semibold text-blue-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a2 2 0 114 0 2 2 0 01-4 0zm8 0a2 2 0 114 0 2 2 0 01-4 0z" clipRule="evenodd" />
+                          </svg>
+                          Arweave Blockchain Details
+                        </h5>
+                        <div className="space-y-3">
+                          {record.txId && (
+                            <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-100">
+                              <span className="text-xs font-medium text-blue-600">Transaction ID:</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded border">
+                                  {formatId(record.txId, true)}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="p-2 rounded-lg hover:bg-blue-100 transition-colors duration-200 group"
+                                  title="Copy Transaction ID"
+                                  onClick={() => handleCopyTxId(record.txId)}
+                                >
+                                  {copiedTxId === record.txId ? (
+                                    <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4 text-gray-500 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" fill="none"/>
+                                      <rect x="3" y="3" width="13" height="13" rx="2" stroke="currentColor" fill="none"/>
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )} 
+                          {record.timestamp && (
+                            <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-blue-100">
+                              <span className="text-xs font-medium text-blue-600">Timestamp:</span>
+                              <span className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded border">
+                                {new Date(record.timestamp).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    
-                    {record.timestamp && (
-                      <div className="mt-2">
-                        <label className="text-xs font-medium text-gray-500">Blockchain Timestamp:</label>
-                        <p className="text-xs text-gray-600">
-                          {new Date(record.timestamp).toLocaleString()}
-                        </p>
-                      </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
