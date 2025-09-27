@@ -1,14 +1,17 @@
 import { ethers } from "ethers";
 
-export const setupServerWallet = async (): Promise<{ wallet: ethers.Wallet; balance: string }> => {
+export const setupServerWallet = async (): Promise<ethers.Wallet> => {
+  if (!process.env.WALLET_PRIVATE_KEY || !process.env.THIRDWEB_API_KEY) {
+    throw new Error("Missing WALLET_PRIVATE_KEY or THIRDWEB_API_KEY in env");
+  }
+
   const rpcUrl = `https://545.rpc.thirdweb.com/${process.env.THIRDWEB_API_KEY}`;
   const provider = new ethers.JsonRpcProvider(rpcUrl);
 
-  const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY!, provider);
+  const wallet = new ethers.Wallet(process.env.WALLET_PRIVATE_KEY, provider);
 
   const balanceWei = await provider.getBalance(wallet.address);
-  const balance = ethers.formatEther(balanceWei);
-  console.log(balanceWei,balance)
-  
-  return { wallet, balance };
+  console.log("Wallet address:", wallet.address, "Balance (ETH):", ethers.formatEther(balanceWei));
+
+  return wallet;
 };

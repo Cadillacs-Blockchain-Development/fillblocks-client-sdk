@@ -6,8 +6,7 @@ import { generateClientSecret } from "../../utils/generate.client";
 export const createOrganization = async (req: Request, res: Response):Promise<any> => {
     try {
         const { organizationOwner, organizationName, aboutMe, teamSize } = req.body;
-
-        const existingOrg = await organizationModel.findOne({ organizationOwner });
+        const existingOrg:any = await organizationModel.findOne({ organizationOwner });
         if (existingOrg) {
             return res.status(400).json({
                 success: false,
@@ -15,9 +14,14 @@ export const createOrganization = async (req: Request, res: Response):Promise<an
             });
         }
 
+
         const data = await generateClientSecret();
 
-        const { address, privateKey }:any = generateWallet();
+        console.log(data)
+
+        const { address, privateKey }:any = await generateWallet();
+        console.log(address,privateKey)
+
 
         const newOrg = await organizationModel.create({
             organizationOwner,

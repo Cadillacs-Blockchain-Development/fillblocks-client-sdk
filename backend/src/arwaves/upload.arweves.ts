@@ -5,9 +5,9 @@ export const uploadToArweave = async (
   data: any,
   OrganizationId: string,
 ) => {
-  const { arwaves, wallet }: any = await arweaveSetup();
+  const { arweave, wallet }: any = await arweaveSetup(); // ✅ FIXED
 
-  const transaction = await arwaves.createTransaction(
+  const transaction = await arweave.createTransaction(
     { data: JSON.stringify({ schema, ...data }) },
     wallet
   );
@@ -17,8 +17,12 @@ export const uploadToArweave = async (
   transaction.addTag("Content-Type", "application/json");
   transaction.addTag("OrganizationId", OrganizationId);
 
-  await arwaves.transactions.sign(transaction, wallet);
-  const response = await arwaves.transactions.post(transaction);
+  await arweave.transactions.sign(transaction, wallet);
 
-  return { transaction, response };
+  const response = await arweave.transactions.post(transaction);
+
+  console.log("📤 Tx ID:", transaction.id);
+  console.log("🌐 Status:", response.status);
+
+  return { transactionId: transaction.id, response };
 };

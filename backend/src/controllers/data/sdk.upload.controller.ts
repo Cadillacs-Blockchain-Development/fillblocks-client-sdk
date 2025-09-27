@@ -9,15 +9,13 @@ export const uploadData = async (req: Request, res: Response): Promise<any> => {
     const data = req.body.payload;
     const orgClientId = (req as any).organization;
 
-    if (!data || !data._id || !data.schoolId) {
+    if (!data) {
       return res.status(400).json({ message: "Missing required fields in payload" });
     }
 
-    const { transaction } = await uploadToArweave(schema, data, orgClientId);
-
-    const uuid = await generateUuid(data._id, data.schoolId);
-    await initializeStudentDataStream(uuid, transaction);
-
+    const { transactionId } = await uploadToArweave(schema, data, orgClientId._id);
+    const {logs} = await generateUuid(data._id, data.schoolId);
+    await initializeStudentDataStream(logs.uidHash, transactionId);
     return res
       .status(201)
       .json({ message: "Data uploaded successfully", data });
@@ -28,3 +26,6 @@ export const uploadData = async (req: Request, res: Response): Promise<any> => {
       .json({ message: "Internal server error", error: err.message });
   }
 };
+
+
+// 

@@ -2,6 +2,7 @@ import { Application } from "express";
 import swaggerUi from "swagger-ui-express";
 import { organizationApiDoc } from "./organization.docs";
 import { userApiDoc } from "./user.docs";
+import { arwavesSwaggerSpec } from "./arwaves.docs";
 
 
 const swaggerSpec = {
@@ -35,7 +36,8 @@ const swaggerSpec = {
   ],
   paths: {
     ...userApiDoc.paths,
-    ...organizationApiDoc.paths
+    ...organizationApiDoc.paths,
+    ...arwavesSwaggerSpec.paths,
   },
 };
 
