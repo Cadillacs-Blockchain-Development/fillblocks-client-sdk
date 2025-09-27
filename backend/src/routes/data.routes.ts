@@ -4,5 +4,8 @@ import { uploadData } from '../controllers/data/sdk.upload.controller';
  
 const sdkUploadRoutes:IRouter =  Router()
 sdkUploadRoutes.post("/upload/:schema/data",sdkAuthenticateMiddleware,uploadData)
- 
+
 export default sdkUploadRoutes;
+
+
+// sdkUploadRoutes.put("/update/:schema/data",sdkAuthenticateMiddleware,uploadData)
