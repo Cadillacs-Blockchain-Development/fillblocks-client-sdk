@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-
-contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+contract PhilBlocksUID is Initializable, UUPSUpgradeable, AccessControlUpgradeable {
     using ECDSA for bytes32;
+    
+    // Role definitions (consistent with PhilBlocksCore)
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant INSTITUTION_ROLE = keccak256("INSTITUTION_ROLE");
+    bytes32 public constant STUDENT_ROLE = keccak256("STUDENT_ROLE");
+    bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     
     // ZK Proof verifier contract
     IVerifier public verifier;
+    // Temporary mock verification flag
+    bool public mockVerificationEnabled;
     
     // UID mappings
     mapping(bytes32 => bool) public registeredUIDs;
@@ -22,15 +29,18 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     mapping(bytes32 => RecoveryData) public recoveryData;
     mapping(bytes32 => bool) public pendingRecoveries;
     
-    // Institution management
-    mapping(address => bool) public authorizedInstitutions;
+    // Institution management (now using AccessControl)
     mapping(bytes32 => address) public institutionUIDs;
+    
+    // Centralized role management
+    address public roleManager; // PhilBlocksCore address
     
     // Events
     event UIDRegistered(bytes32 indexed uidHash, address indexed user, uint256 timestamp);
     event RecoveryRequested(bytes32 indexed recoveryId, string recoveryMethod, uint256 timestamp);
     event RecoveryCompleted(bytes32 indexed uidHash, address indexed newAddress, uint256 timestamp);
-    event InstitutionAuthorized(address indexed institution, bool authorized);
+    event InstitutionRoleGranted(address indexed institution);
+    event InstitutionRoleRevoked(address indexed institution);
     
     // Structs
     struct UIDData {
@@ -60,11 +70,38 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     /**
      * @dev Initialize the contract with ZK verifier address
      * @param _verifier Address of the ZK proof verifier contract
+     * @param _admin Address of the admin (will be granted DEFAULT_ADMIN_ROLE)
      */
-    function initialize(address _verifier) public initializer {
-        __Ownable_init(msg.sender);
+    function initialize(address _verifier, address _admin) public initializer {
+        __AccessControl_init();
         __UUPSUpgradeable_init();
+        require(_verifier != address(0), "Invalid verifier address");
+        require(_admin != address(0), "Invalid admin address");
+        
         verifier = IVerifier(_verifier);
+        mockVerificationEnabled = false;
+        
+        // Set up access control
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
+        
+        // Admin can grant other roles
+        _setRoleAdmin(INSTITUTION_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(STUDENT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(UPDATER_ROLE, ADMIN_ROLE);
+    }
+    
+    /**
+     * @dev Set role manager (PhilBlocksCore) - can only be called once by admin
+     * @param _roleManager Address of the role manager contract
+     */
+    function setRoleManager(address _roleManager) external onlyRole(ADMIN_ROLE) {
+        require(_roleManager != address(0), "Invalid role manager address");
+        require(roleManager == address(0), "Role manager already set");
+        roleManager = _roleManager;
+        
+        // Grant role manager the ability to grant roles
+        _grantRole(ADMIN_ROLE, _roleManager);
     }
     
     /**
@@ -85,7 +122,7 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint[2] memory input
     ) external {
         require(!registeredUIDs[uidHash], "UID already registered");
-        require(verifier.verifyProof(a, b, c, input), "Invalid ZK proof");
+        require(_verifyProofOrMock(uidHash, institutionHash, a, b, c, input), "Invalid ZK proof");
         require(msg.sender != address(0), "Invalid sender address");
         
         uidData[uidHash] = UIDData({
@@ -151,17 +188,16 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         bytes32 salt,
         address newAddress,
         bytes memory signature
-    ) external onlyOwner {
+    ) external onlyRole(ADMIN_ROLE) {
         bytes32 recoveryId = keccak256(abi.encodePacked(nationalIDHash, salt));
         require(pendingRecoveries[recoveryId], "No pending recovery");
         require(newAddress != address(0), "Invalid new address");
         
         // Verify signature from authorized institution
         bytes32 messageHash = keccak256(abi.encodePacked(recoveryId, newAddress));
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
-        address signer = ethSignedMessageHash.recover(signature);
+        address signer = ECDSA.recover(messageHash, signature);
         
-        require(isAuthorizedInstitution(signer), "Unauthorized institution");
+        require(hasRole(ADMIN_ROLE, signer) || hasRole(INSTITUTION_ROLE, signer), "Unauthorized institution");
         
         // Recreate UID using same logic
         bytes32 uidHash = recreateUID(nationalIDHash, salt);
@@ -209,16 +245,22 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
     
     /**
-     * @dev Authorize or deauthorize an institution
-     * @param institution Address of the institution
-     * @param authorized Whether to authorize or deauthorize
+     * @dev Grant institution role to an address (admin only)
+     * @param institution Address to grant institution role
      */
-    function setInstitutionAuthorization(
-        address institution,
-        bool authorized
-    ) external onlyOwner {
-        authorizedInstitutions[institution] = authorized;
-        emit InstitutionAuthorized(institution, authorized);
+    function grantInstitutionRole(address institution) external onlyRole(ADMIN_ROLE) {
+        require(institution != address(0), "Invalid institution address");
+        _grantRole(INSTITUTION_ROLE, institution);
+        emit InstitutionRoleGranted(institution);
+    }
+    
+    /**
+     * @dev Revoke institution role from an address (admin only)
+     * @param institution Address to revoke institution role
+     */
+    function revokeInstitutionRole(address institution) external onlyRole(ADMIN_ROLE) {
+        _revokeRole(INSTITUTION_ROLE, institution);
+        emit InstitutionRoleRevoked(institution);
     }
     
     /**
@@ -256,7 +298,7 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      * @return True if authorized
      */
     function isAuthorizedInstitution(address institution) public view returns (bool) {
-        return authorizedInstitutions[institution];
+        return hasRole(ADMIN_ROLE, institution) || hasRole(INSTITUTION_ROLE, institution);
     }
     
     /**
@@ -282,16 +324,66 @@ contract PhilBlocksUID is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      * @param nationalIDHash Hash of the national ID
      * @param salt Salt used for UID generation
      * @return Recreated UID hash
+     * 
+     * Note: This function should match the circuit's Poseidon hashing logic
+     * In practice, you would use a Poseidon hash library or precomputed values
      */
     function recreateUID(bytes32 nationalIDHash, bytes32 salt) internal pure returns (bytes32) {
+        // For now, using keccak256 as a placeholder
+        // In production, this should use Poseidon hashing to match the circuit
         return keccak256(abi.encodePacked(nationalIDHash, salt));
     }
     
     /**
-     * @dev Authorize contract upgrades (only owner)
+     * @dev Poseidon hash function (placeholder - should be implemented with proper library)
+     * @param inputs Array of field elements to hash
+     * @return Poseidon hash result
+     */
+    function poseidonHash(uint256[] memory inputs) internal pure returns (uint256) {
+        // This is a placeholder implementation
+        // In production, use a proper Poseidon hash library like poseidon-solidity
+        require(inputs.length > 0, "Empty inputs");
+        
+        // Simple hash combination for now
+        uint256 result = inputs[0];
+        for (uint256 i = 1; i < inputs.length; i++) {
+            result = uint256(keccak256(abi.encodePacked(result, inputs[i])));
+        }
+        return result;
+    }
+
+    /**
+     * @dev Enable/disable mock verification (admin only)
+     * @param enabled Whether mock verification is enabled
+     */
+    function setMockVerificationEnabled(bool enabled) external onlyRole(ADMIN_ROLE) {
+        mockVerificationEnabled = enabled;
+    }
+
+    /**
+     * @dev Internal helper to either verify proof via verifier or mock check
+     * When mock is enabled, it verifies that input[0] == uidHash and input[1] == institutionHash
+     */
+    function _verifyProofOrMock(
+        bytes32 uidHash,
+        bytes32 institutionHash,
+        uint[2] memory a,
+        uint[2][2] memory b,
+        uint[2] memory c,
+        uint[2] memory input
+    ) internal view returns (bool) {
+        if (mockVerificationEnabled) {
+            // In mock mode, simply ensure public inputs echo the supplied parameters
+            return (bytes32(input[0]) == uidHash && bytes32(input[1]) == institutionHash);
+        }
+        return verifier.verifyProof(a, b, c, input);
+    }
+    
+    /**
+     * @dev Authorize contract upgrades (only admin)
      * @param newImplementation Address of new implementation
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(ADMIN_ROLE) {}
 }
 
 /**

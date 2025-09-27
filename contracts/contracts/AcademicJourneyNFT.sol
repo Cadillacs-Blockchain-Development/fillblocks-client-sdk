@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
-    using Counters for Counters.Counter;
+contract AcademicJourneyNFT is ERC721, ERC721URIStorage, AccessControl {
     
     // Token ID counter
-    Counters.Counter private _tokenIdCounter;
+    uint256 private _tokenIdCounter;
     
     // Mapping of token ID to academic snapshot data
     mapping(uint256 => AcademicSnapshot) public snapshots;
@@ -21,8 +19,14 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
     // Mapping of UID to their NFTs for UID-centric operations
     mapping(bytes32 => uint256[]) public uidToNFTs;
     
-    // Mapping of institution to authorized minters
-    mapping(address => bool) public authorizedMinters;
+    // Centralized role management
+    address public roleManager; // PhilBlocksCore address
+    
+    // Role definitions (consistent with PhilBlocksCore and PhilBlocksUID)
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant INSTITUTION_ROLE = keccak256("INSTITUTION_ROLE");
+    bytes32 public constant STUDENT_ROLE = keccak256("STUDENT_ROLE");
+    bytes32 public constant UPDATER_ROLE = keccak256("UPDATER_ROLE");
     
     // Events
     event AcademicSnapshotMinted(
@@ -41,7 +45,8 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
         uint256 timestamp
     );
     
-    event AuthorizedMinterUpdated(address indexed minter, bool authorized);
+    event InstitutionRoleGranted(address indexed institution);
+    event InstitutionRoleRevoked(address indexed institution);
     
     // Structs
     struct AcademicSnapshot {
@@ -60,11 +65,37 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @dev Constructor
      * @param name Name of the NFT collection
      * @param symbol Symbol of the NFT collection
+     * @param _admin Address of the admin (will be granted DEFAULT_ADMIN_ROLE)
      */
     constructor(
         string memory name,
-        string memory symbol
-    ) ERC721(name, symbol) Ownable(msg.sender) {}
+        string memory symbol,
+        address _admin
+    ) ERC721(name, symbol) {
+        require(_admin != address(0), "Invalid admin address");
+        
+        // Set up access control
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
+        
+        // Admin can grant other roles
+        _setRoleAdmin(INSTITUTION_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(STUDENT_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(UPDATER_ROLE, ADMIN_ROLE);
+    }
+    
+    /**
+     * @dev Set role manager (PhilBlocksCore) - can only be called once by admin
+     * @param _roleManager Address of the role manager contract
+     */
+    function setRoleManager(address _roleManager) external onlyRole(ADMIN_ROLE) {
+        require(_roleManager != address(0), "Invalid role manager address");
+        require(roleManager == address(0), "Role manager already set");
+        roleManager = _roleManager;
+        
+        // Grant role manager the ability to grant roles
+        _grantRole(ADMIN_ROLE, _roleManager);
+    }
     
     /**
      * @dev Mint a new academic journey NFT
@@ -89,7 +120,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
         uint256 graduationDate
     ) external returns (uint256 tokenId) {
         require(
-            msg.sender == owner() || authorizedMinters[msg.sender],
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(INSTITUTION_ROLE, msg.sender),
             "Not authorized to mint"
         );
         require(student != address(0), "Invalid student address");
@@ -101,8 +132,8 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
         require(graduationDate > 0, "Invalid graduation date");
         
         // Generate new token ID
-        tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
+        tokenId = _tokenIdCounter;
+        _tokenIdCounter++;
         
         // Create academic snapshot
         snapshots[tokenId] = AcademicSnapshot({
@@ -160,7 +191,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
         uint256 graduationDate
     ) external returns (uint256 tokenId) {
         require(
-            msg.sender == owner() || authorizedMinters[msg.sender],
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(INSTITUTION_ROLE, msg.sender),
             "Not authorized to mint"
         );
         require(student != address(0), "Invalid student address");
@@ -173,8 +204,8 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
         require(graduationDate > 0, "Invalid graduation date");
         
         // Generate new token ID
-        tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
+        tokenId = _tokenIdCounter;
+        _tokenIdCounter++;
         
         // Create academic snapshot with UID
         snapshots[tokenId] = AcademicSnapshot({
@@ -224,7 +255,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @return Academic snapshot data
      */
     function getAcademicSnapshot(uint256 tokenId) external view returns (AcademicSnapshot memory) {
-        require(_exists(tokenId), "Token does not exist");
+        require(ownerOf(tokenId) != address(0), "Token does not exist");
         return snapshots[tokenId];
     }
     
@@ -247,7 +278,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
         uint256[] memory tokenIds = new uint256[](balance);
         
         uint256 index = 0;
-        for (uint256 i = 0; i < _tokenIdCounter.current(); i++) {
+        for (uint256 i = 0; i < _tokenIdCounter; i++) {
             if (ownerOf(i) == student) {
                 tokenIds[index] = i;
                 index++;
@@ -272,7 +303,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @return merkleRoot Merkle root of the token
      */
     function getMerkleRoot(uint256 tokenId) external view returns (bytes32) {
-        require(_exists(tokenId), "Token does not exist");
+        require(ownerOf(tokenId) != address(0), "Token does not exist");
         return snapshots[tokenId].merkleRoot;
     }
     
@@ -283,7 +314,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @return True if credential is included
      */
     function verifyCredential(uint256 tokenId, string memory credentialId) external view returns (bool) {
-        require(_exists(tokenId), "Token does not exist");
+        require(ownerOf(tokenId) != address(0), "Token does not exist");
         
         AcademicSnapshot memory snapshot = snapshots[tokenId];
         
@@ -298,13 +329,22 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
     }
     
     /**
-     * @dev Authorize or deauthorize a minter
-     * @param minter Address of the minter
-     * @param authorized Whether to authorize or deauthorize
+     * @dev Grant institution role to an address (admin only)
+     * @param institution Address to grant institution role
      */
-    function setAuthorizedMinter(address minter, bool authorized) external onlyOwner {
-        authorizedMinters[minter] = authorized;
-        emit AuthorizedMinterUpdated(minter, authorized);
+    function grantInstitutionRole(address institution) external onlyRole(ADMIN_ROLE) {
+        require(institution != address(0), "Invalid institution address");
+        _grantRole(INSTITUTION_ROLE, institution);
+        emit InstitutionRoleGranted(institution);
+    }
+    
+    /**
+     * @dev Revoke institution role from an address (admin only)
+     * @param institution Address to revoke institution role
+     */
+    function revokeInstitutionRole(address institution) external onlyRole(ADMIN_ROLE) {
+        _revokeRole(INSTITUTION_ROLE, institution);
+        emit InstitutionRoleRevoked(institution);
     }
     
     /**
@@ -313,7 +353,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @return True if authorized
      */
     function isAuthorizedMinter(address minter) external view returns (bool) {
-        return authorizedMinters[minter];
+        return hasRole(ADMIN_ROLE, minter) || hasRole(INSTITUTION_ROLE, minter);
     }
     
     /**
@@ -321,19 +361,10 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @return Total count
      */
     function totalSupply() external view returns (uint256) {
-        return _tokenIdCounter.current();
+        return _tokenIdCounter;
     }
     
-    /**
-     * @dev Override _burn to clean up mappings
-     * @param tokenId ID of the token to burn
-     */
-    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
-        super._burn(tokenId);
-        
-        // Clean up snapshot data
-        delete snapshots[tokenId];
-    }
+    // Note: _burn override removed due to OpenZeppelin version compatibility
     
     /**
      * @dev Override tokenURI to use ERC721URIStorage
@@ -349,7 +380,7 @@ contract AcademicJourneyNFT is ERC721, ERC721URIStorage, Ownable {
      * @param interfaceId Interface ID to check
      * @return True if interface is supported
      */
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
