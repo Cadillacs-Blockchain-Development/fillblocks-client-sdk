@@ -140,7 +140,7 @@ export const getOrganizationData = async (
     headers['x-auth-token'] = token;
   }
 console.log(userId,"userId")
-  const response = await axios.get(`https://hack-server.philblocks.com/api/organization/${userId}`, {
+  const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/organization/${userId}`, {
     headers,
     withCredentials: true,
   });
@@ -148,37 +148,124 @@ console.log(userId,"userId")
   return response.data;
 };
 
-export interface Schema {
-  id: string;
-  name: string;
-  type: string;
-  definition: string;
-  createdAt: string;
-  isValid: boolean;
-}
 
-export interface SchemasResponse {
-  success: boolean;
-  uniqueSchemas: Schema[];
-  count: number;
-}
 
-export const getSchemas = async (
-  token?: string
-): Promise<SchemasResponse> => {
+export const getSchemas = async (token?: string): Promise<any> => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  // Add token to headers if provided
   if (token) {
     headers['x-auth-token'] = token;
   }
 
-  const response = await axios.get(`https://hack-server.philblocks.com/api/arwaves/schemas/unique`, {
-    headers,
-    withCredentials: true,
-  });
+  const response = await axios.get(
+    `${import.meta.env.VITE_BASE_URL}/arwaves/schemas/unique`,
+    {
+      headers,
+      withCredentials: true,
+    }
+  );
+
+  const uniqueSchemas = response.data.uniqueSchemas[0];
+
+  if (uniqueSchemas) {
+    const schemaResponse = await axios.get(
+      `${import.meta.env.VITE_BASE_URL}/arwaves/schema/${uniqueSchemas}`,
+      {
+        headers,
+        withCredentials: true,
+      }
+    );
+
+    const data = {
+      schema: uniqueSchemas,
+      getschemawiseData: schemaResponse.data?.data,
+    };
+
+    console.log(data,"data")
+    return data;
+  }
+
+  // Return empty object if no schema found
+  return {};
+};
+// export const getSchemas = async (
+//   token?: string
+// ): Promise<any> => {
+//   const headers: Record<string, string> = {
+//     'Content-Type': 'application/json',
+//   };
+
+//   // Add token to headers if provided
+//   if (token) {
+//     headers['x-auth-token'] = token;
+//   }
+
+//   const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/arwaves/schemas/unique`, {
+//     headers,
+//     withCredentials: true,
+//   });
+
+//   const uniqueSchemas = response.data.uniqueSchemas[0];
+//     if(uniqueSchemas){
+//       const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/arwaves/schema/${uniqueSchemas}`, {
+//         headers,
+//         withCredentials: true,
+//       });
+
+
+// const data = {
+//   schema: uniqueSchemas,
+//   getschemawiseData:response.data?.data,
+// }
+
+//       if(response.data.data[0]){
+//         const responseUserHistory = await axios.get(`${import.meta.env.VITE_BASE_URL}/arwaves/schema/${uniqueSchemas}/user/${response.data.data[0]?.data._id}/history`, {
+//           headers,
+//           withCredentials: true,
+//         });
+//         console.log(responseUserHistory.data,"response.data user history wise" )
+//       }
+//     }
+//   return response.data;
+
+// };
+
+// /api/schemas?qury&pageSize=100&÷
+
+export interface StudentHistoryResponse {
+  success: boolean;
+  schema: string;
+  userId: string;
+  history: Array<{
+    txId: string;
+    data: any;
+    timestamp: string | null;
+  }>;
+  message?: string;
+}
+
+export const getStudentHistory = async (
+  schemaName: string,
+  studentId: string,
+  token?: string
+): Promise<StudentHistoryResponse> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['x-auth-token'] = token;
+  }
+
+  const response = await axios.get(
+    `${import.meta.env.VITE_BASE_URL}/arwaves/schema/${schemaName}/user/${studentId}/history`,
+    {
+      headers,
+      withCredentials: true,
+    }
+  );
 
   return response.data;
 };

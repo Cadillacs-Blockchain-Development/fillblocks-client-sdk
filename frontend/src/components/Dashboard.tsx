@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAppSelector } from '../store/hooks';
 import { createOrganization, getOrganizationProjects, getSchemas } from '../utils/organizationApi';
-import type { OrganizationData, OrganizationDataResponse, Schema as ApiSchema } from '../utils/organizationApi';
+import type { OrganizationData, OrganizationDataResponse } from '../utils/organizationApi';
 import OrganizationKeysModal from './OrganizationKeysModal';
+import StudentHistoryModal from './StudentHistoryModal';
 import Sidebar from './Sidebar';
 
 interface Schema {
@@ -22,6 +23,8 @@ const Dashboard: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [schemas, setSchemas] = useState<Schema[]>([]);
+  const [schemaName, setSchemaName] = useState<string>('');
+  const [studentData, setStudentData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userOrganization, setUserOrganization] = useState<OrganizationDataResponse['organization'] | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,6 +33,10 @@ const Dashboard: React.FC = () => {
   // Organization modal state
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [orgResponseData, setOrgResponseData] = useState<any>(null);
+
+  // Student history modal state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
   // Form states
   const [projectForm, setProjectForm] = useState({
@@ -54,22 +61,33 @@ const Dashboard: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await getSchemas(token || undefined);
-      
-      if (response.success) {
-        // Convert API schemas to local Schema interface
-        const apiSchemas: Schema[] = response.uniqueSchemas.map((apiSchema: ApiSchema) => ({
-          id: apiSchema.id,
-          name: apiSchema.name,
-          type: apiSchema.type,
-          definition: apiSchema.definition,
-          createdAt: apiSchema.createdAt,
-          isValid: apiSchema.isValid
-        }));
+      console.log(response,"response schemas")
+      if (response && response.schema && response.getschemawiseData) {
+        // Store the schema name
+        setSchemaName(response.schema);
         
-        setSchemas(apiSchemas);
-        toast.success(`Loaded ${response.count} schemas`);
+        // Store the raw student data for the show-data tab
+        setStudentData(response.getschemawiseData);
+        
+        // Create a single schema entry that represents all the data for this schema type
+        const schemaEntry: Schema = {
+          id: response.schema,
+          name: response.schema,
+          type: 'student_schema',
+          definition: JSON.stringify({
+            schemaName: response.schema,
+            totalRecords: response.getschemawiseData.length,
+            sampleData: response.getschemawiseData[0]?.data || {},
+            allRecords: response.getschemawiseData
+          }, null, 2),
+          createdAt: response.getschemawiseData[0]?.data?.createdAt || new Date().toISOString(),
+          isValid: true
+        };
+        
+        setSchemas([schemaEntry]);
+        toast.success(`Loaded ${response.getschemawiseData.length} records for ${response.schema} schema`);
       } else {
-        toast.error('Failed to fetch schemas');
+        toast.error('No schema data found');
       }
     } catch (error: any) {
       console.error('Error fetching schemas:', error);
@@ -108,21 +126,32 @@ const Dashboard: React.FC = () => {
       try {
         const schemaResponse = await getSchemas(token || undefined);
         
-        if (schemaResponse.success) {
-          // Convert API schemas to local Schema interface
-          const apiSchemas: Schema[] = schemaResponse.uniqueSchemas.map((apiSchema: ApiSchema) => ({
-            id: apiSchema.id,
-            name: apiSchema.name,
-            type: apiSchema.type,
-            definition: apiSchema.definition,
-            createdAt: apiSchema.createdAt,
-            isValid: apiSchema.isValid
-          }));
+        if (schemaResponse && schemaResponse.schema && schemaResponse.getschemawiseData) {
+          // Store the schema name
+          setSchemaName(schemaResponse.schema);
           
-          setSchemas(apiSchemas);
-          toast.success(`Loaded ${schemaResponse.count} schemas`);
+          // Store the raw student data for the show-data tab
+          setStudentData(schemaResponse.getschemawiseData);
+          
+          // Create a single schema entry that represents all the data for this schema type
+          const schemaEntry: Schema = {
+            id: schemaResponse.schema,
+            name: schemaResponse.schema,
+            type: 'student_schema',
+            definition: JSON.stringify({
+              schemaName: schemaResponse.schema,
+              totalRecords: schemaResponse.getschemawiseData.length,
+              sampleData: schemaResponse.getschemawiseData[0]?.data || {},
+              allRecords: schemaResponse.getschemawiseData
+            }, null, 2),
+            createdAt: schemaResponse.getschemawiseData[0]?.data?.createdAt || new Date().toISOString(),
+            isValid: true
+          };
+          
+          setSchemas([schemaEntry]);
+          toast.success(`Loaded ${schemaResponse.getschemawiseData.length} records for ${schemaResponse.schema} schema`);
         } else {
-          toast.error('Failed to fetch schemas');
+          toast.error('No schema data found');
         }
       } catch (schemaError: any) {
         console.error('Error fetching schemas:', schemaError);
@@ -219,10 +248,16 @@ const Dashboard: React.FC = () => {
     setActiveTab(tabId);
   };
 
+  const handleViewStudentHistory = (student: any) => {
+    setSelectedStudent(student);
+    setShowHistoryModal(true);
+  };
+
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'add-project', label: 'Create Organization', icon: '🏢' },
     { id: 'show-schema', label: 'Show Schema', icon: '📋' },
+    { id: 'show-data', label: 'Show Data', icon: '🗂️' },
   ];
 
   const renderContent = () => {
@@ -322,7 +357,26 @@ const Dashboard: React.FC = () => {
       case 'show-schema':
         return (
           <div className="p-4 md:p-6 animate-fadeIn">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Schema Management</h2>
+            <div className="mb-6">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Schema Management</h2>
+              {schemaName && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <span className="text-xl">📋</span>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-lg font-semibold text-blue-900">
+                        Current Schema: {schemaName}
+                      </h3>
+                      <p className="text-sm text-blue-700">
+                        Active schema for data management
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* Schema Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -332,7 +386,7 @@ const Dashboard: React.FC = () => {
                     <span className="text-xl">📋</span>
                   </div>
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-600">Total Schemas</p>
+                    <p className="text-sm font-medium text-gray-600">Schema Types</p>
                     <p className="text-xl font-bold text-gray-900">{schemas.length}</p>
                   </div>
                 </div>
@@ -340,22 +394,22 @@ const Dashboard: React.FC = () => {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-green-100 rounded-lg">
-                    <span className="text-xl">✅</span>
+                    <span className="text-xl">👥</span>
                   </div>
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-600">Valid Schemas</p>
-                    <p className="text-xl font-bold text-gray-900">{schemas.filter(s => s.isValid).length}</p>
+                    <p className="text-sm font-medium text-gray-600">Total Records</p>
+                    <p className="text-xl font-bold text-gray-900">{studentData.length}</p>
                   </div>
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <span className="text-xl">❌</span>
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <span className="text-xl">🔗</span>
                   </div>
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-600">Invalid Schemas</p>
-                    <p className="text-xl font-bold text-gray-900">{schemas.filter(s => !s.isValid).length}</p>
+                    <p className="text-sm font-medium text-gray-600">Blockchain Entries</p>
+                    <p className="text-xl font-bold text-gray-900">{studentData.length}</p>
                   </div>
                 </div>
               </div>
@@ -366,8 +420,12 @@ const Dashboard: React.FC = () => {
               <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">All Schemas</h3>
-                    <p className="text-sm text-gray-600 mt-1">View and manage your schema definitions</p>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {schemaName ? `${schemaName} Schema Definition` : 'All Schemas'}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {schemaName ? `Schema definition and metadata for ${schemaName} (${studentData.length} records)` : 'View and manage your schema definitions'}
+                    </p>
                   </div>
                   <button
                     onClick={fetchSchemas}
@@ -412,7 +470,7 @@ const Dashboard: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                              {schema.type.toUpperCase()}
+                              {schema?.type?.toUpperCase()}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -472,6 +530,144 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         );
+       case 'show-data':
+         return (
+           <div className="p-4 md:p-6 animate-fadeIn">
+             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Student Data</h2>
+             
+             {/* Dynamic Student Data from API */}
+             <div>
+               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                 <div className="p-4 border-b border-gray-200">
+                   <div className="flex items-center justify-between">
+                     <div>
+                       <h3 className="text-lg font-semibold text-gray-900">Student Records</h3>
+                       <p className="text-sm text-gray-600 mt-1">
+                         {studentData.length > 0 
+                           ? `Real student data from the blockchain (${studentData.length} students)`
+                           : 'No student data available'
+                         }
+                       </p>
+                     </div>
+                     <button
+                       onClick={fetchSchemas}
+                       disabled={isLoading}
+                       className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                     >
+                       {isLoading ? 'Loading...' : 'Refresh Data'}
+                     </button>
+                   </div>
+                 </div>
+                 
+                 <div className="overflow-x-auto">
+                   {studentData.length > 0 ? (
+                     <table className="w-full">
+                       <thead className="bg-gray-50 border-b border-gray-200">
+                         <tr>
+                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                             Student
+                           </th>
+                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                             Contact Info
+                           </th>
+                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                             Academic Info
+                           </th>
+                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                             Status
+                           </th>
+                         </tr>
+                       </thead>
+                       <tbody className="bg-white divide-y divide-gray-200">
+                         {studentData.map((student, index) => (
+                           <tr key={student.id || index} className="hover:bg-gray-50 transition-colors duration-200">
+                             <td className="px-6 py-4 whitespace-nowrap">
+                               <div className="flex items-center">
+                                 <div className="flex-shrink-0 h-10 w-10">
+                                   <img 
+                                     className="h-10 w-10 rounded-full" 
+                                     src={student.data?.profile_picture || '/default-avatar.png'} 
+                                     alt="Profile" 
+                                   />
+                                 </div>
+                                 <div className="ml-4">
+                                   <div className="text-sm font-medium text-gray-900">
+                                     {student.data?.name || 'Unknown'}
+                                   </div>
+                                   <div className="text-sm text-gray-500">
+                                     ID: {student.data?._id || 'N/A'}
+                                   </div>
+                                 </div>
+                               </div>
+                             </td>
+                             <td className="px-6 py-4">
+                               <div className="text-sm text-gray-900">
+                                 <div>📧 {student.data?.email || 'N/A'}</div>
+                                 <div>📱 {student.data?.phone_number || 'N/A'}</div>
+                                 <div>📅 DOB: {student.data?.dob ? new Date(student.data.dob).toLocaleDateString() : 'N/A'}</div>
+                               </div>
+                             </td>
+                             <td className="px-6 py-4">
+                               <div className="text-sm text-gray-900">
+                                 <div>🎓 Roll: {student.data?.roll_number || 'N/A'}</div>
+                                 <div>🏫 School: {student.data?.current_school || 'N/A'}</div>
+                                 <div>📚 Class: {student.data?.assign_class || 'N/A'}</div>
+                               </div>
+                             </td>
+                             <td className="px-6 py-4">
+                               <div className="flex flex-col space-y-2">
+                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                   Active
+                                 </span>
+                                 <div className="text-xs text-gray-500">
+                                   Created: {student.data?.createdAt ? new Date(student.data.createdAt).toLocaleDateString() : 'N/A'}
+                                 </div>
+                                 <button
+                                   onClick={() => handleViewStudentHistory(student)}
+                                   className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                 >
+                                   View History
+                                 </button>
+                               </div>
+                             </td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   ) : (
+                     <div className="text-center py-8 text-gray-500">
+                       <div className="text-4xl mb-4">👥</div>
+                       <p className="text-lg font-medium mb-2">No student data found</p>
+                       <p className="text-sm">Click "Refresh Data" to load student information</p>
+                     </div>
+                   )}
+                 </div>
+                 
+                 {/* Transaction Logs */}
+                 {studentData.length > 0 && (
+                   <div className="p-4 border-t border-gray-200">
+                     <h4 className="text-sm font-medium text-gray-900 mb-3">Blockchain Transaction Logs</h4>
+                     <div className="space-y-2">
+                       {studentData.map((student, index) => (
+                         <div key={student.id || index} className="bg-green-50 border border-green-200 rounded p-3">
+                           <div className="flex items-center">
+                             <span className="text-green-600 mr-2">✅</span>
+                             <span className="text-sm text-green-800">
+                               Student {student.data?.name || 'Unknown'} uploaded successfully
+                             </span>
+                           </div>
+                           <div className="text-xs text-green-600 mt-1">
+                             Transaction ID: {student.id} | Created: {student.data?.createdAt ? new Date(student.data.createdAt).toLocaleString() : 'N/A'}
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 )}
+               </div>
+             </div>
+           </div>
+         );
       default:
         return (
           <div className="p-4 md:p-6 animate-fadeIn">
@@ -690,6 +886,15 @@ const Dashboard: React.FC = () => {
         isOpen={showOrgModal}
         onClose={() => setShowOrgModal(false)}
         organizationData={orgResponseData}
+      />
+
+      {/* Student History Modal */}
+      <StudentHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        student={selectedStudent}
+        schemaName={schemaName}
+        token={token || undefined}
       />
 
     </div>
