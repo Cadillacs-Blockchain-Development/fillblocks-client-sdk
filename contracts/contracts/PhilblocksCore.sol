@@ -85,6 +85,55 @@ contract PhilBlocksCore {
     }
     
     /**
+     * @dev Anchor a student-specific merkle root for data integrity
+     * @param merkleRoot Student's merkle root to anchor
+     * @param studentUID UID hash of the student
+     * @param arweaveTxId Arweave transaction ID containing student's credentials
+     * @param credentialIds Array of credential IDs for this student
+     * @param batchId Batch identifier (optional)
+     */
+    function anchorStudentMerkleRoot(
+        bytes32 merkleRoot,
+        bytes32 studentUID,
+        string memory arweaveTxId,
+        string[] memory credentialIds,
+        string memory batchId
+    ) external {
+        require(!anchoredStudentMerkleRoots[merkleRoot], "Student merkle root already anchored");
+        require(uidContract.registeredUIDs(studentUID), "Student UID not registered");
+        require(bytes(arweaveTxId).length > 0, "Empty Arweave transaction ID");
+        require(credentialIds.length > 0, "No credential IDs provided");
+        
+        studentMerkleAnchors[merkleRoot] = StudentMerkleAnchor({
+            merkleRoot: merkleRoot,
+            uidHash: studentUID,
+            arweaveTxId: arweaveTxId,
+            institution: msg.sender,
+            timestamp: block.timestamp,
+            credentialIds: credentialIds
+        });
+        
+        anchoredStudentMerkleRoots[merkleRoot] = true;
+        
+        // Update batch info if batchId is provided
+        if (bytes(batchId).length > 0) {
+            if (batchInfo[batchId].timestamp == 0) {
+                // New batch
+                batchInfo[batchId] = BatchInfo({
+                    batchId: batchId,
+                    batchMerkleRoot: bytes32(0), // Will be updated separately
+                    studentUIDs: new bytes32[](0),
+                    institution: msg.sender,
+                    timestamp: block.timestamp
+                });
+            }
+            batchInfo[batchId].studentUIDs.push(studentUID);
+        }
+        
+        emit StudentMerkleRootAnchored(merkleRoot, studentUID, batchId, arweaveTxId, block.timestamp);
+    }
+    
+    /**
      * @dev Update student's current wallet address
      * @param studentUID UID hash of the student
      * @param newWallet New wallet address (can be address(0) to remove wallet)
@@ -170,6 +219,51 @@ contract PhilBlocksCore {
         emit AcademicSnapshotCreated(studentUID, tokenId, merkleRoot, metadataUri);
     }
     
+    /**
+     * @dev Verify a credential using UID-based verification
+     * @param studentUID UID hash of the student
+     * @param credentialId ID of the credential to verify
+     * @return verified True if credential is verified
+     * @return tokenId ID of the NFT containing the credential
+     */
+    function verifyCredentialWithUID(
+        bytes32 studentUID,
+        string memory credentialId
+    ) external view returns (bool verified, uint256 tokenId) {
+        // Check if student has UID
+        require(uidContract.registeredUIDs(studentUID), "Student UID not registered");
+        
+        // Get student's latest NFT
+        uint256[] memory studentNFTList = studentNFTs[studentUID];
+        require(studentNFTList.length > 0, "Student has no academic NFTs");
+        
+        tokenId = studentNFTList[studentNFTList.length - 1]; // Get latest NFT
+        
+        // Verify credential in NFT
+        verified = nftContract.verifyCredential(tokenId, credentialId);
+    }
+    
+    /**
+     * @dev Get complete academic profile for a student by UID
+     * @param studentUID UID hash of the student
+     * @return uidHash Hash of the student's UID
+     * @return tokenIds Array of NFT token IDs
+     * @return hasActiveUID True if student has active UID
+     * @return currentWallet Current wallet address associated with UID
+     */
+    function getStudentAcademicProfile(
+        bytes32 studentUID
+    ) external view returns (
+        bytes32 uidHash,
+        uint256[] memory tokenIds,
+        bool hasActiveUID,
+        address currentWallet
+    ) {
+        uidHash = studentUID;
+        tokenIds = studentNFTs[studentUID];
+        hasActiveUID = uidContract.registeredUIDs(studentUID);
+        currentWallet = getCurrentWallet(studentUID);
+    }
     
     /**
      * @dev Get student profile information
