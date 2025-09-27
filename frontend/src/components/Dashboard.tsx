@@ -73,10 +73,13 @@ const Dashboard: React.FC = () => {
         setAllSchemas(response.allSchemas || []);
         setSchemaNames(response.schemaNames || []);
         
+        console.log(response,"response")
+        const studentSchema = response.allSchemas.find(sch => sch.schema === "student");
         // Store the raw student data for the show-data tab (from first schema)
-        setStudentData(schemaResponse?.allSchemas[1]?.getschemawiseData);
+        setStudentData(studentSchema?.getschemawiseData);
+
         
-        console.log(response.allSchemas,"response.allSchemas")
+        console.log(studentData,"response.allSchemas")
         // Create schema entries for all schemas
         const schemaEntries: Schema[] = (response.allSchemas || []).map((schemaData: any) => ({
           id: schemaData.schema,
@@ -137,13 +140,16 @@ const Dashboard: React.FC = () => {
         if (schemaResponse && schemaResponse.schema && schemaResponse.getschemawiseData) {
           // Store the schema name (first schema for backward compatibility)
           setSchemaName(schemaResponse.schema);
-          
+  
           // Store all schemas data
           setAllSchemas(schemaResponse.allSchemas || []);
           setSchemaNames(schemaResponse.schemaNames || []);
           
           // Store the raw student data for the show-data tab (from first schema)
-          setStudentData(schemaResponse?.allSchemas[1]?.getschemawiseData);
+          // const studentSchema = response.schemaResponse.find(sch => sch.schema === "student");
+          const studentSchema = schemaResponse.allSchemas.find(sch => sch.schema === "student");
+        // Store the raw student data for the show-data tab (from first schema)
+        setStudentData(studentSchema?.getschemawiseData);
           
           // Create schema entries for all schemas
           const schemaEntries: Schema[] = (schemaResponse.allSchemas || []).map((schemaData: any) => ({

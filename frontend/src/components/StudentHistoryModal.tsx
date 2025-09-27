@@ -48,6 +48,12 @@ const StudentHistoryModal: React.FC<StudentHistoryModalProps> = ({
         setHistory(response.history || []);
         setUid(uidResponse?.user)
         setData(dataResponse?.data?.data || {})
+        
+        // Set student data from the specific schema response
+        if (dataResponse?.allSchemas && dataResponse.allSchemas[1]?.getschemawiseData) {
+          setStudentData(dataResponse.allSchemas[1].getschemawiseData);
+        }
+        
         toast.success(`Loaded ${response.history?.length || 0} history records`);
       } else {
         toast.error('Failed to fetch student history');
