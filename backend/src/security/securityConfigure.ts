@@ -1,8 +1,8 @@
 import { Application, json, urlencoded ,static as static_} from "express";
 import cors from "cors";
-import compression from "compression";
+// import compression from "compression";
 import hpp from "hpp";
-import rateLimit from "express-rate-limit";
+// import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import path from "path";
 
@@ -28,11 +28,7 @@ export const securityConfigure = (app: Application) => {
   app.use("/upload",static_(path.resolve("uploads")))
 
 
-  app.use(
-    compression({
-      level: 6,
-    })
-  );
+  
 
   app.use(
     cors({
