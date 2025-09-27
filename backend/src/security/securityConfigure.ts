@@ -10,9 +10,8 @@ export const securityConfigure = (app: Application) => {
   const allowDomain = [
     "http://localhost:5173",  
     "http://localhost:8080",
-    "http://localhost:8081",
-
-   
+    "https://hack-server.philblocks.com", 
+    "https://server-dev.philblocks.com"
   ];
 
   app.set("trust proxy", 1);

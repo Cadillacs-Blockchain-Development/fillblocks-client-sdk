@@ -5,16 +5,20 @@ import { generateUuid,initializeStudentDataStream } from "../../blockchain/block
 
 export const uploadData = async (req: Request, res: Response): Promise<any> => {
   try {
-    const schema = req.params.schema || "user";
+    const schema = req.params.schema ;
     const data = req.body.payload;
-    const orgClientId = (req as any).organization;
-
+    const orgClientId = (req as any).organization?._id;
+    
+    console.log("Upload request - Schema:", schema, "OrgId:", orgClientId, "Data:", data);
+    
     if (!data) {
       return res.status(400).json({ message: "Missing required fields in payload" });
     }
 
-    const { transactionId } = await uploadToArweave(schema, data, orgClientId._id);
+    const { transactionId } = await uploadToArweave(schema, data, orgClientId?.toString());
+    console.log("Transaction uploaded successfully:", transactionId);
     const {logs} = await generateUuid(data._id, data.schoolId);
+  console.log(logs)
     await initializeStudentDataStream(logs.uidHash, transactionId);
     
     return res

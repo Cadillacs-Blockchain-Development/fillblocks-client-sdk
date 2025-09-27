@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import organizationModel from "../../models/organization.model";
+import mongoose from "mongoose";
 
 export const getOrganizationDetails = async (req: Request, res: Response):Promise<any> => {
     try {
         const { orgId } = req.params;
 
+        const orgIdString = mongoose.Types.ObjectId.isValid(orgId) ? orgId : null;
         const organization = await organizationModel
-            .findById(orgId).populate("organizationOwner"); 
+            .findById(orgIdString).populate("organizationOwner"); 
 
         if (!organization) {
             return res.status(404).json({

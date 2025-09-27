@@ -5,8 +5,7 @@ import userModel from "../models/user.model";
 
 export const authenticateMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const token = req.cookies?.authToken || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2OGQzNDdkNmNjODU1OGI2OGI4MWVmMGEiLCJlbWFpbCI6ImpvaG4uZG9lQGV4YW1wbGUuY29tIiwiaWF0IjoxNzU4Njc2OTY3LCJleHAiOjE3NTkyODE3Njd9.HKUqgP30FqDQ73lJTSrUy_x0SB6L_uuT3pZWj2flHjo";
-
+   const token :any= req.headers['x-auth-token'];
     if (!token) {
       return res.status(401).json({ message: "Unauthorized: No token provided" });
     }
