@@ -6,7 +6,9 @@
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"build": "tsc -p .",
-		"dev": "npm run build && tsc-watch --onSuccess \"node dist/index.js\""
+		"dev": "npm run build && tsc-watch --onSuccess \"node dist/index.js\"",
+		"arlocal": "node node_modules/arlocal/bin/arlocal.js --port 1984",
+		"start:arlocal": "start cmd /k \"npm run arlocal\""
 	},
 	"keywords": [],
 	"author": "",

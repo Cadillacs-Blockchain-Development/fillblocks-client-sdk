@@ -4,7 +4,15 @@ import path from "path";
 
 const walletPath = path.join(__dirname, "../wallet.json");
 
+let arweaveInstance: any = null;
+let walletInstance: any = null;
+let walletAddress: string | null = null;
+
 export async function arweaveSetup() {
+  if (arweaveInstance && walletInstance && walletAddress) {
+    return { arweave: arweaveInstance, wallet: walletInstance, address: walletAddress };
+  }
+
   const arweave = Arweave.init({
     host: "localhost",
     port: 1984,
@@ -23,13 +31,16 @@ export async function arweaveSetup() {
   }
 
   const address = await arweave.wallets.jwkToAddress(wallet);
-  console.log("🔑 Wallet address:", address);
 
   await arweave.api.get(`/mint/${address}/1000000000000`);
-  console.log("💰 Wallet funded with 1000 AR (testnet only)");
 
   const balance = await arweave.wallets.getBalance(address);
+  console.log("🔑 Wallet address:", address);
   console.log("🏦 Balance (AR):", arweave.ar.winstonToAr(balance));
+
+  arweaveInstance = arweave;
+  walletInstance = wallet;
+  walletAddress = address;
 
   return { arweave, wallet, address };
 }
