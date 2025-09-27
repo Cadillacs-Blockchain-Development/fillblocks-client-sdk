@@ -16,6 +16,7 @@ export const uploadData = async (req: Request, res: Response): Promise<any> => {
     const { transactionId } = await uploadToArweave(schema, data, orgClientId._id);
     const {logs} = await generateUuid(data._id, data.schoolId);
     await initializeStudentDataStream(logs.uidHash, transactionId);
+    
     return res
       .status(201)
       .json({ message: "Data uploaded successfully", data });

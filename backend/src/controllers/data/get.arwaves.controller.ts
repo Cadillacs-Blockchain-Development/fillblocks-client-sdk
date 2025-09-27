@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { arweaveSetup } from "../../arwaves/arwaves";
 
 
- 
 export const getUniqueSchemas = async (req: Request, res: Response): Promise<any> => {
   try {
     const orgClientId = (req as any)?.user?.organization?._id;
@@ -88,8 +87,6 @@ export const getUniqueSchemas = async (req: Request, res: Response): Promise<any
   }
 };
 
-
- 
 
 export const getDataBySchema = async (req: Request, res: Response): Promise<any> => {
   try {
