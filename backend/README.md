@@ -1,30 +1,95 @@
-# SDK Backend
+# Philblocks SDK Backend
 
-A Node.js backend service for managing data uploads and retrieval using Arweave blockchain.
+A comprehensive Node.js backend service for managing decentralized data storage and retrieval using Arweave blockchain with Ethereum smart contract integration.
 
-## Prerequisites
+## 🏗️ Architecture & Technology Stack
+
+**Core Technologies:**
+- **Node.js/Express.js** - Web framework
+- **TypeScript** - Type-safe JavaScript
+- **MongoDB/Mongoose** - Database and ODM
+- **Arweave** - Decentralized storage blockchain
+- **Ethereum/Thirdweb** - Smart contract interactions
+- **JWT** - Authentication tokens
+
+## 🚀 Features
+
+### 🔐 Authentication System
+- **User Management**: Complete user registration/login with bcrypt password hashing
+- **JWT-based Authentication**: Token-based auth with middleware protection
+- **Organization-based Access**: Users belong to organizations with client/secret key authentication
+- **Google OAuth Support**: Integration for Google login
+
+### ⛓️ Blockchain Integration
+**Arweave Integration:**
+- **Decentralized Storage**: Data uploaded to Arweave blockchain
+- **Local Development**: Uses ArLocal for testing
+- **Transaction Management**: Automatic wallet generation and transaction signing
+- **Data Retrieval**: GraphQL queries to fetch stored data
+
+**Ethereum Smart Contracts:**
+- **Student UID Generation**: Creates unique identifiers on-chain
+- **Data Stream Initialization**: Sets up student data streams
+- **Data Updates**: Tracks data changes on blockchain
+- **Thirdweb Integration**: Simplified smart contract interactions
+
+### 📊 Data Management
+**SDK Upload System:**
+- **Schema-based Uploads**: Data organized by schemas
+- **Organization Isolation**: Data separated by organization
+- **Dual Storage**: Data stored both on Arweave and blockchain
+- **Update Tracking**: Maintains data history and previous hashes
+
+**Data Retrieval:**
+- **Schema-based Queries**: Get data by specific schemas
+- **User History**: Track individual user data changes
+- **Unique Schema Discovery**: Find all available schemas
+- **Pagination Support**: Efficient data loading
+
+### 🏢 Organization Management
+- **Multi-tenant Architecture**: Each organization has isolated data
+- **Client/Secret Authentication**: API key-based access for SDK
+- **Wallet Generation**: Automatic blockchain wallet creation
+- **Team Management**: Organization size tracking
+
+### 🔒 Security Features
+- **CORS Configuration**: Controlled cross-origin access
+- **Helmet Security**: HTTP security headers
+- **Rate Limiting**: Request throttling capabilities
+- **Input Validation**: Data sanitization with HPP
+- **Authentication Middleware**: Route protection
+
+## 📋 Prerequisites
 
 - Node.js (v16 or higher)
 - npm or pnpm
+- MongoDB instance
+- ArLocal (for development)
 
-## Setup
+## 🛠️ Setup
 
-1. Install dependencies:
+1. **Install dependencies:**
 ```bash
 npm install
 ```
 
-2. Start ArLocal (Arweave local node):
+2. **Configure environment:**
+```bash
+cp env.example .env
+# Edit .env with your configuration
+```
+
+3. **Start ArLocal (Arweave local node):**
 ```bash
 npm run arlocal
 ```
 
-3. In a separate terminal, start the backend:
+4. **In a separate terminal, start the backend:**
 ```bash
 npm run dev
 ```
 
-## Quick Start (Windows)
+## 🚀 Quick Start (Windows)
 
 Use the provided batch file to start both services:
 ```bash
@@ -36,49 +101,79 @@ Or use PowerShell:
 .\start-dev.ps1
 ```
 
-## API Endpoints
+## 📚 API Documentation
 
-### Upload Data
-- **POST** `/api/sdk/upload/:schema/data`
-- Headers: `clientid`, `secretid`
-- Body: `{ "payload": { ... } }`
+### 🔐 Authentication Routes (`/api/auth`)
+- `POST /login` - User login
+- `POST /signup` - User registration
+- `GET /uid` - Get user ID
+- `PUT /update` - Update user profile
+- `DELETE /delete` - Delete user account
 
-### Get Unique Schemas
-- **GET** `/api/arwaves/schemas/unique`
-- Headers: `Authorization: Bearer <token>`
+### 📦 SDK Routes (`/api/sdk`)
+- `POST /upload/:schema/data` - Upload data with schema
+  - Headers: `clientid`, `secretid`
+  - Body: `{ "payload": { ... } }`
+- `PUT /update/:schema/data` - Update existing data
+  - Headers: `clientid`, `secretid`
+  - Body: `{ "payload": { ... } }`
 
-### Get Data by Schema
-- **GET** `/api/arwaves/schema/:schema`
-- Headers: `Authorization: Bearer <token>`
+### 🏢 Organization Routes (`/api/organization`)
+- `POST /create` - Create new organization
+- `GET /get` - Get organization details
+- `PUT /update` - Update organization
+- `DELETE /delete` - Delete organization
 
-### Get User History
-- **GET** `/api/arwaves/schema/:schema/user/:userId/history`
-- Headers: `Authorization: Bearer <token>`
+### 🌐 Arweave Routes (`/api/arwaves`)
+- `GET /schemas/unique` - Get unique schemas
+  - Headers: `Authorization: Bearer <token>`
+- `GET /schema/:schema` - Get data by schema
+  - Headers: `Authorization: Bearer <token>`
+- `GET /schema/:schema/user/:userId/history` - Get user history
+  - Headers: `Authorization: Bearer <token>`
 
-## Troubleshooting
-
-### "fetch failed" Error
-This error occurs when ArLocal is not running. Make sure to:
-1. Start ArLocal first: `npm run arlocal`
-2. Wait for it to fully start (you should see "ArLocal is ready!")
-3. Then start the backend: `npm run dev`
-
-### Port 1984 Already in Use
-If port 1984 is already in use:
-1. Kill the process using the port
-2. Or change the port in `src/arwaves/arwaves.ts` and restart ArLocal with the new port
-
-### Empty Data Responses
-If GET routes return empty data:
-1. Ensure data has been uploaded first
-2. Check that the organization ID matches between upload and retrieval
-3. Verify the schema name is correct
-4. Check the server logs for detailed error messages
-
-## Development
+## 🔧 Development
 
 The project uses TypeScript and compiles to the `dist/` directory. The development server automatically rebuilds and restarts on file changes.
 
-## Logs
+### Available Scripts
+- `npm run build` - Compile TypeScript
+- `npm run dev` - Development server with hot reload
+- `npm run arlocal` - Start ArLocal node
+- `npm start` - Start production server
 
-Server logs are written to the `logs` file in the project root. Check this file for detailed error information.
+## 🌟 Key Features
+
+### Decentralized Data Storage
+- Data is permanently stored on Arweave blockchain
+- Immutable transaction history
+- Organization-based data isolation
+- Schema-based data organization
+
+### Blockchain Integration
+- Student UID generation on Ethereum
+- Data stream initialization
+- Update tracking with hash chains
+- Smart contract event logging
+
+### SDK Authentication
+- Client ID/Secret key authentication
+- Organization-based access control
+- Middleware protection for all SDK routes
+
+### Development Tools
+- **ArLocal Integration**: Local Arweave node for development
+- **Hot Reload**: TypeScript compilation with file watching
+- **Comprehensive Logging**: Detailed error and success logging
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
